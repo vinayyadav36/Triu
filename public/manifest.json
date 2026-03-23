@@ -1,11 +1,15 @@
 {
-  "name": "EmproiumVipani - Multi-Vendor Marketplace",
-  "short_name": "EV",
-  "description": "Premium natural products, stationery & worksheets from verified sellers",
+  "name": "EmproiumVipani – Multi-Vendor Marketplace",
+  "short_name": "EmpVipani",
+  "description": "Premium curated products from verified independent sellers. Shop natural products, stationery, worksheets & more.",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#ecfdf5",
-  "theme_color": "#10b981",
+  "orientation": "portrait-primary",
+  "background_color": "#050509",
+  "theme_color": "#050509",
+  "categories": ["shopping", "business"],
+  "lang": "en-IN",
   "icons": [
     {
       "src": "icon-192.png",
@@ -18,6 +22,22 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Shop Now",
+      "short_name": "Shop",
+      "description": "Browse our curated catalogue",
+      "url": "/#shop",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Seller Dashboard",
+      "short_name": "Seller",
+      "description": "Manage your seller account",
+      "url": "/supplier.html",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
     }
   ]
 }

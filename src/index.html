@@ -6,6 +6,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="description" content="Curated objects for desks, rituals, and learning. A single interface for many independent makers." />
 
+  <!-- PWA -->
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#050509" />
+  <link rel="apple-touch-icon" href="/icon-192.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="EmpVipani" />
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="EmproiumVipani – Curated Objects" />
+  <meta property="og:description" content="Premium curated products from verified independent makers." />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="/icon-512.png" />
+
   <!-- Tailwind CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -41,9 +55,6 @@
 
   <!-- EmailJS -->
   <script src="https://cdn.emailjs.com/dist/email.min.js"></script>
-
-  <!-- Meta -->
-  <meta name="theme-color" content="#050509" />
 
   <!-- Custom CSS -->
   <link rel="stylesheet" href="styles.css" />
@@ -85,6 +96,9 @@
           <button @click="scrollTo('collections')" class="hover:text-slate-50 transition-colors">Collections</button>
           <button @click="scrollTo('shop')" class="hover:text-slate-50 transition-colors">Catalogue</button>
           <button @click="scrollTo('about')" class="hover:text-slate-50 transition-colors">About</button>
+          <template x-if="store.user?.role === 'seller'">
+            <a href="supplier.html" class="hover:text-emeraldSoft transition-colors font-semibold">Seller Panel</a>
+          </template>
           <template x-if="store.user?.role === 'admin'">
             <a href="admin.html" class="hover:text-goldSoft transition-colors font-semibold">Admin Panel</a>
           </template>
@@ -125,11 +139,20 @@
           </template>
 
           <!-- Partner CTA -->
-          <button @click="openSellerModal()"
-            class="hidden sm:inline-flex items-center gap-2 rounded-full border border-[#334155] bg-black/70 px-4 py-1.5 text-[11px] font-semibold text-slate-100 hover:border-goldSoft/70 hover:bg-ink-800 transition shadow-sm">
-            <span class="h-1.5 w-1.5 rounded-full bg-emeraldCore"></span>
-            Partner access
-          </button>
+          <template x-if="store.user?.role === 'seller'">
+            <a href="supplier.html"
+              class="hidden sm:inline-flex items-center gap-2 rounded-full border border-[#334155] bg-emeraldCore/10 px-4 py-1.5 text-[11px] font-semibold text-emeraldSoft hover:border-emeraldSoft/70 hover:bg-emeraldCore/20 transition shadow-sm">
+              <span class="h-1.5 w-1.5 rounded-full bg-emeraldCore"></span>
+              Seller Panel
+            </a>
+          </template>
+          <template x-if="store.user?.role !== 'seller'">
+            <button @click="openSellerModal()"
+              class="hidden sm:inline-flex items-center gap-2 rounded-full border border-[#334155] bg-black/70 px-4 py-1.5 text-[11px] font-semibold text-slate-100 hover:border-goldSoft/70 hover:bg-ink-800 transition shadow-sm">
+              <span class="h-1.5 w-1.5 rounded-full bg-emeraldCore"></span>
+              Partner access
+            </button>
+          </template>
         </div>
       </nav>
     </header>

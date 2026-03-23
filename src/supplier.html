@@ -20,7 +20,6 @@
     }
   </script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
-  <script src="https://checkout.razorpay.com/v1/checkout.js" defer></script>
   <style>
     body { font-family: 'Inter', system-ui, sans-serif; }
     .sidebar-item { display:flex; align-items:center; gap:0.75rem; padding:0.75rem 1rem; border-radius:0.75rem; color:#94a3b8; cursor:pointer; transition:all 0.15s; font-size:0.875rem; font-weight:500; }
@@ -981,7 +980,7 @@
 <script>
 // API_BASE falls back to same-origin /api (matching server proxy config).
 // window.VITE_API_URL can be set by a runtime injection script if needed.
-const API_BASE = (typeof window !== 'undefined' && window.VITE_API_URL) || (window.location.origin + '/api');
+const API_BASE = window.VITE_API_URL || (window.location.origin + '/api');
 
 function supplierApp() {
   return {

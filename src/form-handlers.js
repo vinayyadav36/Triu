@@ -124,9 +124,9 @@ window.handleSellerApplicationWizard = async function(wizardForm) {
             address: { city: wizardForm.city, state: wizardForm.state, pincode: wizardForm.pincode },
             businessName: wizardForm.businessName,
             businessType: wizardForm.businessType,
-            gst: wizardForm.gst.trim() || undefined,
+            gst: wizardForm.gst?.trim() || undefined,
             pan: wizardForm.pan.toUpperCase(),
-            tagline: wizardForm.tagline.trim() || undefined,
+            tagline: wizardForm.tagline?.trim() || undefined,
             bank: {
                 accountHolderName: wizardForm.accountHolderName,
                 bankName: wizardForm.bankName,
@@ -138,7 +138,7 @@ window.handleSellerApplicationWizard = async function(wizardForm) {
                 aadhaarNumber: wizardForm.aadhaarNumber,
                 govtIdType: wizardForm.govtIdType,
                 govtIdNumber: wizardForm.govtIdNumber,
-                profilePhotoUrl: wizardForm.profilePhotoUrl.trim() || undefined
+                profilePhotoUrl: wizardForm.profilePhotoUrl?.trim() || undefined
             },
             firstProduct: {
                 name: wizardForm.productName,
@@ -146,7 +146,7 @@ window.handleSellerApplicationWizard = async function(wizardForm) {
                 price: Number(wizardForm.productPrice),
                 stock: Number(wizardForm.productStock),
                 description: wizardForm.productDescription,
-                thumbnail: wizardForm.productImageUrl.trim() || undefined
+                thumbnail: wizardForm.productImageUrl?.trim() || undefined
             }
         };
 

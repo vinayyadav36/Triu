@@ -998,7 +998,8 @@ window.sellerWizard = function() {
             const f = this.form;
             if (this.step === 1) {
                 if (!f.fullName.trim()) this.errors.fullName = 'Full name is required';
-                if (!f.phone.trim() || !/^\d{10}$/.test(f.phone.trim())) this.errors.phone = 'Valid 10-digit phone required';
+                const phone = f.phone.trim();
+                if (!phone || !/^\d{10}$/.test(phone)) this.errors.phone = 'Valid 10-digit phone required';
                 if (!f.email.trim() || !/\S+@\S+\.\S+/.test(f.email)) this.errors.email = 'Valid email required';
                 if (!f.city.trim()) this.errors.city = 'City is required';
                 if (!f.state.trim()) this.errors.state = 'State is required';

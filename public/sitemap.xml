@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <!-- Home / Shell -->
+  <url>
+    <loc>https://emproiumvipani.com/</loc>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>
+
+  <!-- Collections overview -->
+  <url>
+    <loc>https://emproiumvipani.com/#collections</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <!-- Full catalogue -->
+  <url>
+    <loc>https://emproiumvipani.com/#shop</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+
+  <!-- Category: Natural Products -->
+  <url>
+    <loc>https://emproiumvipani.com/#shop?category=Natural+Products</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.7</priority>
+  </url>
+
+  <!-- Category: Stationery -->
+  <url>
+    <loc>https://emproiumvipani.com/#shop?category=Stationery</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.7</priority>
+  </url>
+
+  <!-- Category: Worksheets -->
+  <url>
+    <loc>https://emproiumvipani.com/#shop?category=Worksheets</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.7</priority>
+  </url>
+
+  <!-- About -->
+  <url>
+    <loc>https://emproiumvipani.com/#about</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+</urlset>

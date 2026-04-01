@@ -19,6 +19,50 @@
   <meta property="og:description" content="Premium curated products from verified independent makers." />
   <meta property="og:type" content="website" />
   <meta property="og:image" content="/icon-512.png" />
+  <meta property="og:url" content="https://emproiumvipani.com/" />
+  <meta property="og:site_name" content="EmproiumVipani" />
+  <meta property="og:locale" content="en_IN" />
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="EmproiumVipani – Curated Objects" />
+  <meta name="twitter:description" content="Premium curated products from verified independent makers." />
+  <meta name="twitter:image" content="/icon-512.png" />
+
+  <!-- SEO -->
+  <link rel="canonical" href="https://emproiumvipani.com/" />
+  <meta name="robots" content="index,follow" />
+  <meta name="author" content="EmproiumVipani" />
+  <meta name="keywords" content="stationery, natural products, worksheets, curated marketplace, India, handmade" />
+
+  <!-- Structured Data: Organisation + WebSite -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": "https://emproiumvipani.com/#organization",
+        "name": "EmproiumVipani",
+        "url": "https://emproiumvipani.com/",
+        "logo": { "@type": "ImageObject", "url": "https://emproiumvipani.com/icon-512.png" },
+        "sameAs": []
+      },
+      {
+        "@type": "WebSite",
+        "@id": "https://emproiumvipani.com/#website",
+        "url": "https://emproiumvipani.com/",
+        "name": "EmproiumVipani",
+        "publisher": { "@id": "https://emproiumvipani.com/#organization" },
+        "potentialAction": {
+          "@type": "SearchAction",
+          "target": { "@type": "EntryPoint", "urlTemplate": "https://emproiumvipani.com/?q={search_term_string}" },
+          "query-input": "required name=search_term_string"
+        }
+      }
+    ]
+  }
+  </script>
 
   <!-- Tailwind CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -393,6 +437,15 @@
               </select>
               <select
                 class="rounded-full border border-[#374151] bg-black/60 px-3 py-1.5 text-[11px] text-slate-200"
+                x-model="store.filters.condition"
+                @change="store.applyFilters ? store.applyFilters() : null">
+                <option value="all">All conditions</option>
+                <option value="new">New</option>
+                <option value="refurbished">Refurbished</option>
+                <option value="used">Used</option>
+              </select>
+              <select
+                class="rounded-full border border-[#374151] bg-black/60 px-3 py-1.5 text-[11px] text-slate-200"
                 x-model="store.filters.sortBy"
                 @change="setSort(store.filters.sortBy)">
                 <option value="relevance">Relevance</option>
@@ -410,8 +463,30 @@
             </div>
           </div>
 
-          <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            <template x-for="product in store.filteredProducts" :key="product.id">
+          <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <!-- Skeleton loaders shown while products load -->
+            <template x-if="store.loading?.products">
+              <template x-for="i in 8" :key="i">
+                <div class="card-compact flex flex-col animate-pulse">
+                  <div class="h-40 bg-[#0b1020] rounded-t-2xl"></div>
+                  <div class="p-4 space-y-2">
+                    <div class="h-3 bg-[#111827] rounded w-3/4"></div>
+                    <div class="h-3 bg-[#111827] rounded w-1/2"></div>
+                    <div class="h-8 bg-[#111827] rounded mt-3"></div>
+                  </div>
+                </div>
+              </template>
+            </template>
+            <!-- Empty state -->
+            <template x-if="!store.loading?.products && store.filteredProducts && !store.filteredProducts.length">
+              <div class="col-span-full py-16 text-center space-y-3">
+                <div class="text-4xl">🔍</div>
+                <p class="text-slate-400 font-medium">No products match your filters.</p>
+                <button @click="setCategory('all');store.filters.search='';store.filters.condition='all'" class="text-[#22c55e] text-sm hover:underline">Clear filters</button>
+              </div>
+            </template>
+            <template x-if="!store.loading?.products && store.filteredProducts && store.filteredProducts.length">
+              <template x-for="product in store.filteredProducts" :key="product.id">
               <article class="group card-compact flex flex-col cursor-pointer" @click="openProduct(product.id)">
                 <div class="relative h-40 overflow-hidden">
                   <div class="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(250,204,107,0.12),_transparent_55%)] opacity-80"></div>
@@ -449,6 +524,7 @@
                 </div>
               </article>
             </template>
+            </template><!-- /x-if products -->
           </div>
         </div>
       </section>

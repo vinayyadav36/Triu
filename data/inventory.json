@@ -1,0 +1,67 @@
+[
+  {
+    "id": "PROD-001",
+    "name": "Organic Turmeric Powder 500g",
+    "category": "Natural Products",
+    "hsn": "0910",
+    "gstRate": 5,
+    "basePrice": 220,
+    "mrp": 299,
+    "stock": 124,
+    "unit": "500g packet",
+    "sellerId": "S001",
+    "description": "Pure, organic turmeric from trusted farmers"
+  },
+  {
+    "id": "PROD-002",
+    "name": "Premium Leather-Bound Diary",
+    "category": "Stationery",
+    "hsn": "4820",
+    "gstRate": 12,
+    "basePrice": 950,
+    "mrp": 1299,
+    "stock": 43,
+    "unit": "piece",
+    "sellerId": "S002",
+    "description": "Luxury leather diary for journaling"
+  },
+  {
+    "id": "PROD-003",
+    "name": "Math & Logic Worksheets Grade 5",
+    "category": "Worksheets",
+    "hsn": "4901",
+    "gstRate": 0,
+    "basePrice": 180,
+    "mrp": 249,
+    "stock": 89,
+    "unit": "set",
+    "sellerId": "S003",
+    "description": "Comprehensive math worksheets"
+  },
+  {
+    "id": "PROD-004",
+    "name": "Ashwagandha Root Powder 250g",
+    "category": "Natural Products",
+    "hsn": "0910",
+    "gstRate": 5,
+    "basePrice": 350,
+    "mrp": 499,
+    "stock": 76,
+    "unit": "250g packet",
+    "sellerId": "S001",
+    "description": "Premium Ashwagandha for wellness"
+  },
+  {
+    "id": "PROD-005",
+    "name": "Custom Monogram Notebook Set",
+    "category": "Stationery",
+    "hsn": "4820",
+    "gstRate": 12,
+    "basePrice": 650,
+    "mrp": 899,
+    "stock": 21,
+    "unit": "set of 3",
+    "sellerId": "S002",
+    "description": "Personalized notebook set with monogram"
+  }
+]

@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /admin.html
+Disallow: /supplier
+Disallow: /supplier.html
+
+Sitemap: https://emproiumvipani.com/sitemap.xml

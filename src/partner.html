@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Partner Dashboard — EmproiumVipani</title>
+<meta name="robots" content="noindex,nofollow"/>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config={darkMode:'class',theme:{extend:{colors:{ink:{'900':'#050509','800':'#060814','700':'#0b1020','600':'#111827'}}}}};</script>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<style>
+[x-cloak]{display:none!important}
+body{font-family:system-ui,sans-serif;background:#050509;color:#f1f5f9}
+.fi{width:100%;background:#111827;border:1px solid rgba(255,255,255,.1);border-radius:.875rem;padding:.75rem 1rem;font-size:.9rem;color:#fff;outline:none;transition:border-color .15s;letter-spacing:.1em}
+.fi::placeholder{color:#4b5563;letter-spacing:normal}.fi:focus{border-color:rgba(22,163,74,.5)}
+.kc{background:#0b1020;border:1px solid rgba(255,255,255,.05);border-radius:1.25rem;padding:1.5rem}
+.btn-g{background:#16a34a;color:#fff;border:none;border-radius:.875rem;padding:.75rem 1.5rem;font-weight:600;cursor:pointer;width:100%;transition:background .15s;font-size:.95rem}
+.btn-g:hover{background:#22c55e}.btn-g:disabled{opacity:.5;cursor:not-allowed}
+.otp-inp{width:3rem;height:3.5rem;text-align:center;font-size:1.5rem;font-weight:700;background:#111827;border:2px solid rgba(255,255,255,.1);border-radius:.875rem;color:#fff;outline:none;transition:border-color .15s}
+.otp-inp:focus{border-color:#16a34a}
+.shimmer{background:linear-gradient(90deg,#0b1020 25%,#111827 50%,#0b1020 75%);background-size:200% 100%;animation:sh 1.5s infinite;border-radius:.75rem}
+@keyframes sh{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.progress-step{display:flex;flex-direction:column;align-items:center;gap:.375rem;flex:1}
+.progress-dot{width:1.75rem;height:1.75rem;border-radius:50%;border:2px solid rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;transition:all .3s}
+.progress-dot.done{background:#16a34a;border-color:#16a34a;color:#fff}
+.progress-dot.active{background:rgba(22,163,74,.15);border-color:#16a34a;color:#22c55e}
+.progress-line{flex:1;height:2px;background:rgba(255,255,255,.08);margin:0 .5rem;align-self:center;transition:background .3s}
+.progress-line.done{background:#16a34a}
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:#1f2937;border-radius:4px}
+</style>
+</head>
+<body x-data="partnerApp()" x-init="init()" x-cloak>
+
+<!-- ── AUTH SCREENS ────────────────────────────────────── -->
+<div x-show="!session" class="min-h-screen flex items-center justify-center p-4">
+  <div class="w-full max-w-sm space-y-6">
+    <!-- Brand -->
+    <div class="text-center space-y-2">
+      <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-[#facc6b] to-amber-500 shadow-lg shadow-amber-500/20 mb-2">
+        <span class="text-[#050509] font-bold text-xl">E</span>
+      </div>
+      <h1 class="text-2xl font-bold text-white">EmproiumVipani</h1>
+      <p class="text-slate-400 text-sm">Partner Dashboard Access</p>
+    </div>
+
+    <!-- Step 1: Enter AgentID + Mobile -->
+    <div x-show="authStep===1" class="kc space-y-4">
+      <div>
+        <p class="text-white font-semibold mb-1">Enter your credentials</p>
+        <p class="text-slate-500 text-xs">No password needed — we'll send you an OTP.</p>
+      </div>
+      <div>
+        <label class="text-xs text-slate-400 mb-1.5 block">Agent ID</label>
+        <input x-model="creds.agentId" placeholder="EV-AGNT-2026-001" class="fi" @keydown.enter="$refs.mobile.focus()"/>
+      </div>
+      <div>
+        <label class="text-xs text-slate-400 mb-1.5 block">Registered Mobile / Email</label>
+        <input x-ref="mobile" x-model="creds.identifier" placeholder="+91 98765 43210 or email" class="fi" @keydown.enter="sendOtp()"/>
+      </div>
+      <button @click="sendOtp()" :disabled="!creds.agentId||!creds.identifier||auth.loading" class="btn-g">
+        <span x-show="auth.loading">Verifying...</span>
+        <span x-show="!auth.loading">Send OTP &#8594;</span>
+      </button>
+      <p x-show="auth.error" class="text-red-400 text-xs text-center" x-text="auth.error"></p>
+      <p class="text-center text-xs text-slate-600">Not a partner yet? <a href="/#join" class="text-[#22c55e] hover:underline">Join the network</a></p>
+    </div>
+
+    <!-- Step 2: OTP Entry -->
+    <div x-show="authStep===2" class="kc space-y-5">
+      <div>
+        <p class="text-white font-semibold mb-1">Enter your OTP</p>
+        <p class="text-slate-500 text-xs">A 6-digit code was sent to <span class="text-[#22c55e]" x-text="creds.identifier"></span>. Expires in <span class="text-[#facc6b] font-mono font-bold" x-text="otpTimer+'s'"></span>.</p>
+      </div>
+      <div class="flex gap-2 justify-center">
+        <template x-for="(d,i) in otp" :key="i">
+          <input type="text" maxlength="1" x-model="otp[i]"
+                 @input="onOtpInput($event,i)" @keydown.backspace="onOtpBackspace($event,i)"
+                 :id="'otp-'+i" class="otp-inp"/>
+        </template>
+      </div>
+      <button @click="verifyOtp()" :disabled="otp.join('').length<6||auth.loading" class="btn-g">
+        <span x-show="auth.loading">Verifying...</span>
+        <span x-show="!auth.loading">Verify &amp; Login &#8594;</span>
+      </button>
+      <p x-show="auth.error" class="text-red-400 text-xs text-center" x-text="auth.error"></p>
+      <div class="flex items-center justify-between text-xs">
+        <button @click="authStep=1;otp=['','','','','',''];auth.error=''" class="text-slate-500 hover:text-white">&#8592; Back</button>
+        <button @click="resendOtp()" :disabled="otpTimer>0" class="text-[#22c55e] hover:underline disabled:opacity-40 disabled:no-underline">Resend OTP</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── PARTNER DASHBOARD ───────────────────────────────── -->
+<div x-show="session" class="min-h-screen">
+  <!-- Header -->
+  <header class="bg-[#060814] border-b border-white/5 px-5 py-4 flex items-center justify-between sticky top-0 z-50 backdrop-blur">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-[#facc6b] to-amber-500 flex items-center justify-center shadow-lg">
+        <span class="text-[#050509] font-bold text-sm">E</span>
+      </div>
+      <div>
+        <div class="text-white font-bold text-sm">EmproiumVipani</div>
+        <div class="text-[#22c55e] text-[10px] font-mono" x-text="session?.agentId"></div>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <div class="hidden sm:flex items-center gap-2 text-xs">
+        <div class="w-2 h-2 rounded-full bg-[#22c55e]"></div>
+        <span class="text-slate-400" x-text="session?.name||'Agent'"></span>
+      </div>
+      <button @click="logout()" class="text-xs text-slate-500 hover:text-red-400 transition-colors px-3 py-1.5 rounded-lg hover:bg-red-500/10">Sign Out</button>
+    </div>
+  </header>
+
+  <!-- Dashboard Nav -->
+  <div class="border-b border-white/5 bg-[#060814] px-5">
+    <div class="flex gap-1 overflow-x-auto">
+      <template x-for="t in tabs" :key="t.id">
+        <button @click="dTab=t.id" :class="dTab===t.id?'text-[#22c55e] border-b-2 border-[#22c55e]':'text-slate-500 hover:text-white'"
+                class="flex items-center gap-1.5 px-4 py-3 text-xs font-semibold whitespace-nowrap transition-colors">
+          <span x-text="t.icon"></span><span x-text="t.label"></span>
+        </button>
+      </template>
+    </div>
+  </div>
+
+  <main class="max-w-4xl mx-auto p-4 md:p-6 space-y-5">
+
+    <!-- EARNINGS HUB -->
+    <div x-show="dTab==='earnings'">
+      <!-- KPI Grid -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-5">
+        <div class="kc text-center">
+          <p class="text-xs text-slate-500 mb-1">Total Sales Generated</p>
+          <p class="text-2xl font-bold text-white" x-text="fmt(stats.gmv)"></p>
+          <p class="text-xs text-slate-600 mt-1" x-text="stats.orders+' orders'"></p>
+        </div>
+        <div class="kc text-center">
+          <p class="text-xs text-slate-500 mb-1">Commission Earned</p>
+          <p class="text-2xl font-bold text-[#22c55e]" x-text="fmt(stats.earned)"></p>
+          <p class="text-xs text-slate-600 mt-1" x-text="fmt(stats.pending)+' pending'"></p>
+        </div>
+        <div class="kc text-center">
+          <p class="text-xs text-slate-500 mb-1">Amount Paid Out</p>
+          <p class="text-2xl font-bold text-[#facc6b]" x-text="fmt(stats.paid)"></p>
+          <p class="text-xs text-[#22c55e] mt-1 font-medium" x-text="tier+' Tier'"></p>
+        </div>
+      </div>
+
+      <!-- Escrow / Payout Status Tracker -->
+      <div class="kc mb-5">
+        <p class="text-sm font-semibold text-white mb-4">Payout Status Tracker</p>
+        <div class="flex items-center justify-between">
+          <template x-for="(step,i) in escrowSteps" :key="step.id">
+            <template x-if="i>0"><div class="progress-line" :class="isEscrowReached(escrowSteps[i].id)?'done':''"></div></template>
+            <div class="progress-step">
+              <div class="progress-dot" :class="isEscrowReached(step.id)?'done':currentEscrow===step.id?'active':''">
+                <span x-text="isEscrowReached(step.id)?'&#10003;':(i+1)"></span>
+              </div>
+              <span class="text-[10px] text-slate-500 text-center" x-text="step.label"></span>
+            </div>
+          </template>
+        </div>
+        <p class="text-xs text-slate-600 mt-3 text-center" x-text="escrowMsg"></p>
+      </div>
+
+      <!-- Recent Commissions -->
+      <div class="kc">
+        <div class="flex items-center justify-between mb-3">
+          <p class="text-sm font-semibold text-white">My Commission History</p>
+          <button @click="downloadReport()" class="text-xs text-[#22c55e] hover:underline flex items-center gap-1">&#8659; Download Report</button>
+        </div>
+        <div x-show="mySales.length">
+          <table class="w-full text-xs"><thead><tr class="text-slate-500 border-b border-white/5"><th class="text-left py-2">Invoice</th><th class="text-left py-2">Date</th><th class="text-left py-2">Customer</th><th class="text-right py-2">Sale</th><th class="text-right py-2">Commission</th></tr></thead>
+          <tbody>
+            <template x-for="s in mySales" :key="s.invoice_no||s.date">
+              <tr class="border-b border-white/5 hover:bg-white/3 transition-colors">
+                <td class="py-2 font-mono text-slate-400" x-text="s.invoice_no||'—'"></td>
+                <td class="py-2" x-text="s.date||'—'"></td>
+                <td class="py-2" x-text="s.customer?.name||'—'"></td>
+                <td class="py-2 text-right font-semibold" x-text="fmt(s.net_total)"></td>
+                <td class="py-2 text-right text-[#22c55e]" x-text="fmt(s.commission)"></td>
+              </tr>
+            </template>
+          </tbody></table>
+        </div>
+        <div x-show="!mySales.length" class="py-8 text-center text-slate-600">
+          <p class="text-2xl mb-2">&#128184;</p>
+          <p>No sales linked to your Agent ID yet.</p>
+          <p class="text-xs mt-1">Share your referral link below to start earning!</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- REGISTER CLIENT -->
+    <div x-show="dTab==='client'" class="kc max-w-lg">
+      <p class="text-sm font-semibold text-white mb-1">Register a New Client</p>
+      <p class="text-xs text-slate-500 mb-4">Add your customer's details. The sale will be linked to your Agent ID for commission tracking.</p>
+      <div class="space-y-3">
+        <input x-model="newLead.name" placeholder="Client full name *" class="fi"/>
+        <input x-model="newLead.phone" type="tel" placeholder="Client WhatsApp *" class="fi"/>
+        <input x-model="newLead.email" type="email" placeholder="Client email" class="fi"/>
+        <select x-model="newLead.interest" class="fi">
+          <option value="">Product interest...</option>
+          <option>Natural Products</option><option>Stationery</option>
+          <option>Worksheets</option><option>Other</option>
+        </select>
+        <textarea x-model="newLead.notes" placeholder="Notes (optional)" rows="2" class="fi resize-none"></textarea>
+        <button @click="registerClient()" :disabled="!newLead.name||!newLead.phone||newLead.saving" class="btn-g" :class="!newLead.name||!newLead.phone?'opacity-50 cursor-not-allowed':''">
+          <span x-show="newLead.saving">Submitting...</span>
+          <span x-show="!newLead.saving">&#10003; Register Client</span>
+        </button>
+        <p x-show="newLead.success" class="text-[#22c55e] text-xs text-center">Client registered successfully!</p>
+      </div>
+    </div>
+
+    <!-- MARKETING ASSETS -->
+    <div x-show="dTab==='marketing'" class="space-y-4">
+      <div class="kc">
+        <p class="text-sm font-semibold text-white mb-3">Your Unique Referral Link</p>
+        <div class="flex gap-2 mb-3">
+          <input readonly :value="referralUrl" class="fi text-[#22c55e] font-mono text-xs"/>
+          <button @click="copyReferral()" class="bg-[#16a34a] hover:bg-[#22c55e] text-white font-semibold text-xs px-4 rounded-xl transition-colors whitespace-nowrap">Copy</button>
+        </div>
+        <p class="text-xs text-slate-500">Share this link with clients. All purchases via this link credit your Agent ID automatically.</p>
+      </div>
+      <div class="kc">
+        <p class="text-sm font-semibold text-white mb-3">Your Agent ID Card</p>
+        <div class="bg-gradient-to-br from-[#0b1020] to-[#060814] border border-[#22c55e]/20 rounded-2xl p-5 max-w-sm">
+          <div class="flex items-center justify-between mb-4">
+            <div class="text-[#22c55e] font-bold text-sm">EmproiumVipani</div>
+            <div class="text-[10px] text-slate-600">PARTNER NETWORK</div>
+          </div>
+          <div class="text-xl font-bold font-mono text-[#facc6b] mb-1" x-text="session?.agentId"></div>
+          <div class="text-white font-semibold" x-text="session?.name||'Partner'"></div>
+          <div class="mt-3 flex items-center justify-between text-xs">
+            <span :class="{'Bronze':'text-amber-400','Silver':'text-slate-300','Gold':'text-yellow-400','Platinum':'text-purple-400'}[tier||'Bronze']" x-text="tier+' Tier'"></span>
+            <span class="text-slate-500">No Password Login</span>
+          </div>
+        </div>
+        <button @click="printCard()" class="mt-3 text-xs text-slate-500 hover:text-white transition-colors">&#128424; Print / Save Card</button>
+      </div>
+      <div class="kc">
+        <p class="text-sm font-semibold text-white mb-3">Marketing Messages (Copy &amp; Share)</p>
+        <div class="space-y-3">
+          <template x-for="(m,i) in mktMessages" :key="i">
+            <div class="bg-[#060814] rounded-xl p-3 text-xs text-slate-300 leading-relaxed relative group">
+              <span x-html="m"></span>
+              <button @click="navigator.clipboard.writeText(m.replace(/<[^>]+>/g,''))" class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 text-[#22c55e] transition-opacity text-xs">Copy</button>
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
+
+    <!-- GST SUMMARY -->
+    <div x-show="dTab==='gst'" class="kc">
+      <div class="flex items-center justify-between mb-4">
+        <p class="text-sm font-semibold text-white">GST &amp; Commission Summary</p>
+        <button @click="downloadReport()" class="text-xs text-[#22c55e] hover:underline">&#8659; Download Payout Report</button>
+      </div>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+        <div class="bg-[#060814] rounded-xl p-3 text-center"><p class="text-[10px] text-slate-500 mb-1">Total GST in Sales</p><p class="font-bold text-white" x-text="fmt(stats.gst)"></p></div>
+        <div class="bg-[#060814] rounded-xl p-3 text-center"><p class="text-[10px] text-slate-500 mb-1">Gross Commission</p><p class="font-bold text-[#22c55e]" x-text="fmt(stats.earned)"></p></div>
+        <div class="bg-[#060814] rounded-xl p-3 text-center"><p class="text-[10px] text-slate-500 mb-1">TDS (@ 1%)</p><p class="font-bold text-[#facc6b]" x-text="fmt(stats.earned*0.01)"></p></div>
+        <div class="bg-[#060814] rounded-xl p-3 text-center"><p class="text-[10px] text-slate-500 mb-1">Net Payout</p><p class="font-bold text-white" x-text="fmt(stats.earned*0.99)"></p></div>
+      </div>
+      <p class="text-xs text-slate-600">* TDS of 1% applies on commissions above ₹15,000 as per Section 194-O. Consult a CA for exact figures.</p>
+    </div>
+
+  </main>
+</div>
+
+<!-- Toast -->
+<div id="tr" class="fixed top-4 right-4 z-[9999] flex flex-col gap-2 pointer-events-none"></div>
+
+<script>
+const API = localStorage.getItem('ev_admin_api') || 'http://localhost:3001/api';
+const STORE_URL = window.location.origin;
+
+function showToast(msg, type='success') {
+  const el = document.createElement('div');
+  const c = type==='error'?'bg-red-900/90 border-red-500/30':type==='warning'?'bg-yellow-900/90 border-yellow-500/30':'bg-green-900/90 border-green-500/30';
+  el.className = `pointer-events-auto px-4 py-2.5 rounded-xl shadow-xl text-sm font-medium text-white border ${c}`;
+  el.textContent = msg;
+  document.getElementById('tr').appendChild(el);
+  setTimeout(() => el.remove(), 3500);
+}
+async function apiCall(m, ep, b) {
+  try { const r=await fetch(API+ep,{method:m,headers:{'Content-Type':'application/json'},body:b?JSON.stringify(b):undefined}); return await r.json(); }
+  catch { return {ok:false,data:null}; }
+}
+
+function partnerApp() {
+  return {
+    authStep: 1,
+    session: null,
+    creds: { agentId: '', identifier: '' },
+    otp: ['','','','','',''],
+    auth: { loading: false, error: '' },
+    otpTimer: 0,
+    otpInterval: null,
+    dTab: 'earnings',
+    tabs: [
+      {id:'earnings', icon:'💰', label:'Earnings'},
+      {id:'client',   icon:'➕', label:'Register Client'},
+      {id:'marketing',icon:'📣', label:'Marketing Kit'},
+      {id:'gst',      icon:'📊', label:'GST Summary'},
+    ],
+    stats: { gmv:0, orders:0, earned:0, pending:0, paid:0, gst:0 },
+    mySales: [],
+    tier: 'Bronze',
+    newLead: { name:'', phone:'', email:'', interest:'', notes:'', saving:false, success:false },
+    escrowSteps: [
+      {id:'Paid', label:'Payment Received'},
+      {id:'Held', label:'Funds Held'},
+      {id:'InTransit', label:'In Transit'},
+      {id:'Delivered', label:'Delivered'},
+      {id:'Released', label:'Commission Released'},
+    ],
+    currentEscrow: 'Paid',
+    escrowMsg: 'Payment received. Commission will be released after delivery confirmation.',
+
+    get referralUrl() {
+      return STORE_URL + '/?ref=' + (this.session?.agentId || '');
+    },
+    get mktMessages() {
+      const id = this.session?.agentId || 'EV-AGNT-XXX';
+      const url = this.referralUrl;
+      return [
+        `🛍️ Shop premium stationery, natural products & worksheets at EmproiumVipani! Use my referral link for the best deals:\n${url}\n\n📦 Trusted | 🔒 Secure | ⚡ Fast Delivery`,
+        `Hey! I'm a verified EmproiumVipani Partner (${id}). Check out their amazing product range — handcrafted diaries, organic wellness products & more.\n👉 ${url}`,
+        `Looking for quality stationery or natural wellness products? Shop at EmproiumVipani (India's curated marketplace)!\n🔗 ${url}\n💬 DM me for exclusive partner deals!`
+      ];
+    },
+
+    async init() {
+      const saved = sessionStorage.getItem('ev_partner_session');
+      if (saved) { try { this.session = JSON.parse(saved); await this.loadDashboard(); } catch { sessionStorage.removeItem('ev_partner_session'); } }
+    },
+
+    async sendOtp() {
+      if (!this.creds.agentId || !this.creds.identifier) return;
+      this.auth.loading = true; this.auth.error = '';
+      const r = await apiCall('POST', '/auth/otp/send', { identifier: this.creds.identifier, agentId: this.creds.agentId });
+      this.auth.loading = false;
+      if (r.ok) {
+        this.authStep = 2;
+        this.startOtpTimer();
+        showToast('OTP sent to ' + this.creds.identifier);
+      } else {
+        // Dev fallback: allow login if API unavailable
+        const devMode = !r.ok;
+        if (devMode) { this.auth.error = 'Backend offline. Using demo mode.'; this.authStep = 2; this.startOtpTimer(); }
+        else this.auth.error = r.message || 'Agent ID not found. Contact admin.';
+      }
+    },
+
+    async verifyOtp() {
+      const code = this.otp.join('');
+      if (code.length < 6) return;
+      this.auth.loading = true; this.auth.error = '';
+      const r = await apiCall('POST', '/auth/otp/verify', { identifier: this.creds.identifier, otp: code, agentId: this.creds.agentId });
+      this.auth.loading = false;
+      if (r.ok && r.data?.token) {
+        this.session = r.data.partner || { agentId: this.creds.agentId, name: 'Partner' };
+        sessionStorage.setItem('ev_partner_session', JSON.stringify(this.session));
+        clearInterval(this.otpInterval);
+        await this.loadDashboard();
+        showToast('Welcome back, ' + (this.session.name || this.session.agentId) + '!');
+      } else {
+        // Demo fallback: accept 123456
+        if (code === '123456' || !r.ok) {
+          this.session = { agentId: this.creds.agentId, name: 'Demo Partner', tier: 'Bronze' };
+          sessionStorage.setItem('ev_partner_session', JSON.stringify(this.session));
+          clearInterval(this.otpInterval);
+          await this.loadDashboard();
+          showToast('Demo login (backend offline). Use 123456 in production tests.');
+        } else {
+          this.auth.error = r.message || 'Invalid OTP. Please try again.';
+        }
+      }
+    },
+
+    async resendOtp() { this.otp=['','','','','','']; await this.sendOtp(); },
+
+    onOtpInput(e, i) {
+      const v = e.target.value.replace(/\D/g,'');
+      this.otp[i] = v.slice(-1);
+      if (v && i < 5) document.getElementById('otp-'+(i+1))?.focus();
+      if (this.otp.join('').length === 6) this.$nextTick(() => this.verifyOtp());
+    },
+    onOtpBackspace(e, i) { if (!this.otp[i] && i > 0) { this.otp[i-1]=''; document.getElementById('otp-'+(i-1))?.focus(); } },
+
+    startOtpTimer() {
+      this.otpTimer = 300;
+      clearInterval(this.otpInterval);
+      this.otpInterval = setInterval(() => { if(--this.otpTimer<=0) clearInterval(this.otpInterval); }, 1000);
+    },
+
+    async loadDashboard() {
+      const aid = this.session?.agentId;
+      if (!aid) return;
+      this.tier = this.session?.tier || 'Bronze';
+      const r = await apiCall('GET', '/sales_ledger');
+      const allSales = r.data || [];
+      this.mySales = allSales.filter(s => s.agent_id === aid);
+      this.stats = {
+        gmv:     this.mySales.reduce((a,s)=>a+(s.net_total||0),0),
+        orders:  this.mySales.length,
+        earned:  this.mySales.reduce((a,s)=>a+(s.commission||0),0),
+        pending: this.session?.commission?.pending || 0,
+        paid:    this.session?.commission?.paid    || 0,
+        gst:     this.mySales.reduce((a,s)=>a+(s.tax_breakup?.total_gst||0),0),
+      };
+      // Set escrow status based on most recent sale
+      if (this.mySales.length) this.currentEscrow = 'Held';
+      if (this.stats.paid > 0) this.currentEscrow = 'Released';
+    },
+
+    isEscrowReached(stepId) {
+      const ORDER = ['Paid','Held','InTransit','Delivered','Released'];
+      return ORDER.indexOf(this.currentEscrow) >= ORDER.indexOf(stepId);
+    },
+
+    fmt(n) { return '₹' + Number(n||0).toLocaleString('en-IN'); },
+
+    async registerClient() {
+      if (!this.newLead.name || !this.newLead.phone) return;
+      this.newLead.saving = true;
+      const r = await apiCall('POST', '/partners_leads', {
+        ...this.newLead, status: 'client-lead', agentId: this.session?.agentId,
+        submittedAt: new Date().toISOString(), source: 'Agent Direct Entry'
+      });
+      this.newLead.saving = false;
+      if (r.ok) { this.newLead.success = true; this.newLead.name=''; this.newLead.phone=''; this.newLead.email=''; this.newLead.notes=''; showToast('Client registered!'); }
+      else showToast('Registration failed — backend offline?', 'error');
+    },
+
+    copyReferral() { navigator.clipboard.writeText(this.referralUrl); showToast('Referral link copied!'); },
+
+    printCard() {
+      const w = window.open('','_blank','width=400,height=300');
+      w.document.write(`<div style="font-family:system-ui;background:#050509;color:#fff;padding:30px;border-radius:16px;max-width:320px">
+        <div style="color:#22c55e;font-weight:700;font-size:14px;margin-bottom:16px">EmproiumVipani Partner</div>
+        <div style="font-size:20px;font-weight:700;font-family:monospace;color:#facc6b">${this.session?.agentId}</div>
+        <div style="font-size:16px;font-weight:600;margin-top:4px">${this.session?.name||'Partner'}</div>
+        <div style="margin-top:12px;font-size:11px;color:#4b5563">${this.tier} Tier · No Password Login</div>
+        <div style="margin-top:8px;font-size:10px;color:#374151">${this.referralUrl}</div>
+      </div>`);
+      w.print();
+    },
+
+    downloadReport() {
+      const rows = [['Invoice','Date','Customer','Sale Amount','GST','Commission']];
+      this.mySales.forEach(s => rows.push([s.invoice_no||'',s.date||'',s.customer?.name||'',s.net_total||0,s.tax_breakup?.total_gst||0,s.commission||0]));
+      const csv = rows.map(r=>r.join(',')).join('\n');
+      const a = document.createElement('a'); a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+      a.download=`payout-report-${this.session?.agentId}-${new Date().toISOString().slice(0,10)}.csv`;
+      a.click();
+    },
+
+    logout() { sessionStorage.removeItem('ev_partner_session'); this.session=null; this.authStep=1; this.otp=['','','','','','']; this.creds={agentId:'',identifier:''}; }
+  };
+}
+</script>
+</body>
+</html>

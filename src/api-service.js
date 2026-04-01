@@ -264,6 +264,175 @@ class APIService {
     async rejectSeller(id) {
         return this.request('PUT', `/admin/sellers/${id}/reject`);
     }
+
+    // ========== CART SYNC ENDPOINTS ==========
+    async addToCart(productId, quantity = 1) {
+        return this.request('POST', '/cart', { productId, quantity });
+    }
+
+    async removeFromCart(productId) {
+        return this.request('DELETE', `/cart/${productId}`);
+    }
+
+    // ========== PRODUCT SINGLE ==========
+    async getProduct(id) {
+        return this.request('GET', `/products/${id}`);
+    }
+
+    // ========== GEO / LOCATION ==========
+    async getProductsByLocation(lat, lng, radius = 50) {
+        return this.request('GET', `/products/nearby?lat=${lat}&lng=${lng}&radius=${radius}`);
+    }
+
+    // ========== AUCTIONS ==========
+    async getAuctions(params = {}) {
+        const qs = new URLSearchParams(params).toString();
+        return this.request('GET', `/auctions${qs ? '?' + qs : ''}`);
+    }
+
+    async getAuction(id) {
+        return this.request('GET', `/auctions/${id}`);
+    }
+
+    async placeBid(auctionId, amount) {
+        return this.request('POST', `/auctions/${auctionId}/bid`, { amount });
+    }
+
+    // ========== REVIEWS ==========
+    async getReviews(productId) {
+        return this.request('GET', `/products/${productId}/reviews`);
+    }
+
+    async submitReview(productId, rating, comment) {
+        return this.request('POST', `/products/${productId}/reviews`, { rating, comment });
+    }
+
+    // ========== AGENT / LOGISTICS ==========
+    async getDeliveryQueue(agentId) {
+        return this.request('GET', `/agents/${agentId}/deliveries`);
+    }
+
+    async pingAgentLocation(agentId, lat, lng) {
+        return this.request('POST', `/agents/${agentId}/location`, { lat, lng });
+    }
+
+    async updateDeliveryStatus(agentId, orderId, status) {
+        return this.request('PUT', `/agents/${agentId}/deliveries/${orderId}`, { status });
+    }
+
+    // ========== PARTNER / DROPSHIPPER ==========
+    async getPartnerDashboard(agentId) {
+        return this.request('GET', `/partners/${agentId}/dashboard`);
+    }
+
+    async getPartnerLeads(agentId) {
+        return this.request('GET', `/partners/${agentId}/leads`);
+    }
+
+    async addPartnerLead(agentId, leadData) {
+        return this.request('POST', `/partners/${agentId}/leads`, leadData);
+    }
+
+    async getPartnerCommissions(agentId) {
+        return this.request('GET', `/partners/${agentId}/commissions`);
+    }
+
+    async requestPartnerPayout(agentId) {
+        return this.request('POST', `/partners/${agentId}/payout`);
+    }
+
+    // ========== ADMIN COMMAND CENTRE ==========
+    async getAdminCRM() {
+        return this.request('GET', '/admin/crm');
+    }
+
+    async getAdminOrders(params = {}) {
+        const qs = new URLSearchParams(params).toString();
+        return this.request('GET', `/admin/orders${qs ? '?' + qs : ''}`);
+    }
+
+    async getAdminPartners() {
+        return this.request('GET', '/admin/partners');
+    }
+
+    async getPartnerLeadsAdmin() {
+        return this.request('GET', '/admin/partner-leads');
+    }
+
+    async approvePartner(leadId) {
+        return this.request('POST', `/admin/partner-leads/${leadId}/approve`);
+    }
+
+    async rejectPartnerLead(leadId) {
+        return this.request('DELETE', `/admin/partner-leads/${leadId}`);
+    }
+
+    async blockUser(userId) {
+        return this.request('PUT', `/admin/users/${userId}/block`);
+    }
+
+    async issueRefund(orderId) {
+        return this.request('POST', `/admin/orders/${orderId}/refund`);
+    }
+
+    async runResearch() {
+        return this.request('POST', '/admin/run-research');
+    }
+
+    async getPowerBIExport() {
+        return `${API_URL}/admin/export/powerbi?token=${this.getToken()}`;
+    }
+
+    async getGSTReport(month, year) {
+        return this.request('GET', `/admin/gst-report?month=${month}&year=${year}`);
+    }
+
+    async createSaleFromPOS(saleData) {
+        return this.request('POST', '/admin/sales', saleData);
+    }
+
+    async getAdminSessions() {
+        return this.request('GET', '/admin/sessions');
+    }
+
+    async terminateSession(sessionId) {
+        return this.request('DELETE', `/admin/sessions/${sessionId}`);
+    }
+
+    // ========== OTP AUTH (Gromo-style for partners) ==========
+    async requestOtp(identifier, purpose = 'login') {
+        return this.request('POST', '/auth/otp/request', { identifier, purpose });
+    }
+
+    async verifyOtp(requestId, otp) {
+        return this.request('POST', '/auth/otp/verify', { requestId, otp });
+    }
+
+    async partnerSendOTP(identifier, agentId) {
+        return this.request('POST', '/auth/otp/send', { identifier, agentId });
+    }
+
+    async partnerVerifyOTP(identifier, otp, agentId) {
+        return this.request('POST', '/auth/otp/verify', { identifier, otp, agentId });
+    }
+
+    async setSafeKey(key) {
+        return this.request('POST', '/auth/set-key', { key });
+    }
+
+    async loginWithKey(identifier, key) {
+        const result = await this.request('POST', '/auth/login-with-key', { identifier, key });
+        if (result.token) this.setToken(result.token);
+        return result;
+    }
+
+    async refreshToken() {
+        return this.request('POST', '/auth/refresh');
+    }
+
+    logout() {
+        this.clearToken();
+    }
 }
 
 // Create global instance

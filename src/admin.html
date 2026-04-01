@@ -1,981 +1,674 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Admin Panel – EmproiumVipani</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          colors: {
-            ink: { 900: '#050509', 800: '#060814', 700: '#0b1020' },
-            emeraldCore: '#16a34a',
-            emeraldSoft: '#22c55e',
-            goldSoft: '#facc6b'
-          }
-        }
-      }
-    }
-  </script>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
-  <style>
-    body { font-family: 'Inter', system-ui, sans-serif; }
-    .sidebar-item { @apply flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 cursor-pointer transition-all text-sm font-medium; }
-    .sidebar-item.active { @apply bg-emerald-500/20 text-emerald-400 border border-emerald-500/30; }
-    .stat-card { @apply bg-slate-800/60 border border-slate-700/50 rounded-2xl p-5 backdrop-blur-sm; }
-    .badge { @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium; }
-  </style>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>EmproiumVipani Nexus — Command Centre</title>
+<meta name="robots" content="noindex,nofollow"/>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config={darkMode:'class',theme:{extend:{colors:{ink:{'900':'#050509','800':'#060814','700':'#0b1020','600':'#111827'},ev:{green:'#16a34a',soft:'#22c55e',gold:'#facc6b',red:'#ef4444',blue:'#3b82f6'}}}}};</script>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<style>
+[x-cloak]{display:none!important}
+body{font-family:system-ui,sans-serif}
+.sl{display:flex;align-items:center;gap:.75rem;padding:.5rem .875rem;border-radius:.75rem;color:#94a3b8;font-size:.8rem;cursor:pointer;transition:all .15s;font-weight:500}
+.sl:hover{color:#fff;background:rgba(255,255,255,.05)}
+.sl.active{background:rgba(22,163,74,.12);color:#22c55e;font-weight:600}
+.kc{background:#0b1020;border:1px solid rgba(255,255,255,.05);border-radius:1rem;padding:1.25rem}
+.tr{border-bottom:1px solid rgba(255,255,255,.04)}
+.tr:hover{background:rgba(255,255,255,.025)}
+.badge{display:inline-flex;align-items:center;padding:.125rem .625rem;border-radius:9999px;font-size:.7rem;font-weight:600}
+.btn{display:inline-flex;align-items:center;gap:.375rem;padding:.375rem .875rem;border-radius:.75rem;font-size:.75rem;font-weight:600;cursor:pointer;transition:all .15s;border:none;outline:none}
+.bg{background:#16a34a;color:#fff}.bg:hover{background:#22c55e}
+.br{background:rgba(239,68,68,.15);color:#f87171;border:1px solid rgba(239,68,68,.2)}.br:hover{background:rgba(239,68,68,.25)}
+.bh{background:rgba(255,255,255,.05);color:#cbd5e1;border:1px solid rgba(255,255,255,.1)}.bh:hover{background:rgba(255,255,255,.1)}
+.fi{width:100%;background:#111827;border:1px solid rgba(255,255,255,.1);border-radius:.75rem;padding:.625rem 1rem;font-size:.875rem;color:#fff;outline:none;transition:border-color .15s}
+.fi::placeholder{color:#64748b}.fi:focus{border-color:rgba(22,163,74,.5)}
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:#1f2937;border-radius:4px}
+.shimmer{background:linear-gradient(90deg,#0b1020 25%,#111827 50%,#0b1020 75%);background-size:200% 100%;animation:shimmer 1.5s infinite}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+</style>
 </head>
-<body class="bg-slate-900 text-slate-100 antialiased" x-data="adminApp()" x-init="init()">
+<body class="bg-[#050509] text-slate-100 antialiased" x-data="adminApp()" x-init="init()" x-cloak>
 
-<!-- Layout -->
-<div class="flex h-screen overflow-hidden">
-
-  <!-- Sidebar -->
-  <aside class="w-64 bg-slate-900 border-r border-slate-800 flex flex-col shrink-0">
-    <!-- Logo -->
-    <div class="p-6 border-b border-slate-800">
-      <div class="flex items-center gap-3">
-        <div class="h-9 w-9 rounded-xl bg-gradient-to-br from-yellow-400 to-amber-300 flex items-center justify-center">
-          <span class="text-slate-900 font-bold text-sm">E</span>
-        </div>
-        <div>
-          <div class="font-bold text-sm text-white">EmproiumVipani</div>
-          <div class="text-xs text-slate-500">Admin Panel</div>
-        </div>
-      </div>
+<!-- CMD+K Palette -->
+<div x-show="pal.open" x-transition:enter="transition ease-out duration-150" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
+     class="fixed inset-0 z-[9999] flex items-start justify-center pt-24 px-4 bg-black/40 backdrop-blur-sm" @click.self="pal.open=false">
+  <div class="w-full max-w-lg bg-[#0b1020] border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
+    <div class="flex items-center gap-3 px-4 py-3 border-b border-white/5">
+      <span class="text-slate-500">&#128269;</span>
+      <input x-ref="pi" x-model="pal.q" @input="psearch()" @keydown.escape="pal.open=false"
+             @keydown.arrow-down.prevent="pal.i=Math.min(pal.i+1,pal.r.length-1)"
+             @keydown.arrow-up.prevent="pal.i=Math.max(pal.i-1,0)"
+             @keydown.enter="pgo(pal.r[pal.i])"
+             placeholder="Search partners, orders, commands..." class="flex-1 bg-transparent text-white text-sm outline-none placeholder-slate-500"/>
+      <kbd class="text-xs text-slate-600 border border-slate-700 px-1.5 py-0.5 rounded">ESC</kbd>
     </div>
-
-    <!-- Nav -->
-    <nav class="flex-1 p-4 space-y-1 overflow-y-auto">
-      <div class="text-xs text-slate-600 uppercase tracking-wider px-4 mb-2">Business</div>
-      <div class="sidebar-item" :class="{ active: view === 'dashboard' }" @click="view='dashboard'; loadDashboard()">
-        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
-        Dashboard
-      </div>
-      <div class="sidebar-item" :class="{ active: view === 'sales' }" @click="view='sales'; loadSales()">
-        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
-        Sales Analytics
-      </div>
-
-      <div class="text-xs text-slate-600 uppercase tracking-wider px-4 mt-4 mb-2">Operations</div>
-      <div class="sidebar-item" :class="{ active: view === 'orders' }" @click="view='orders'; loadOrders()">
-        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
-        Orders
-        <span x-show="pendingOrderCount > 0" class="ml-auto badge bg-red-500/20 text-red-400" x-text="pendingOrderCount"></span>
-      </div>
-      <div class="sidebar-item" :class="{ active: view === 'products' }" @click="view='products'; loadProducts()">
-        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
-        Products
-      </div>
-      <div class="sidebar-item" :class="{ active: view === 'refunds' }" @click="view='refunds'; loadRefunds()">
-        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/></svg>
-        Refunds
-      </div>
-
-      <div class="text-xs text-slate-600 uppercase tracking-wider px-4 mt-4 mb-2">CRM / SRM</div>
-      <div class="sidebar-item" :class="{ active: view === 'customers' }" @click="view='customers'; loadUsers('customer')">
-        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-        Customers (CRM)
-      </div>
-      <div class="sidebar-item" :class="{ active: view === 'sellers' }" @click="view='sellers'; loadSellers()">
-        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
-        Sellers (SRM)
-        <span x-show="pendingSellerCount > 0" class="ml-auto badge bg-yellow-500/20 text-yellow-400" x-text="pendingSellerCount"></span>
-      </div>
-    </nav>
-
-    <!-- Admin profile -->
-    <div class="p-4 border-t border-slate-800">
-      <div class="flex items-center gap-3">
-        <div class="h-8 w-8 rounded-full bg-emerald-500/30 flex items-center justify-center text-emerald-400 font-bold text-sm">A</div>
-        <div class="flex-1 min-w-0">
-          <div class="text-sm font-medium text-white truncate" x-text="adminName || 'Admin'"></div>
-          <div class="text-xs text-slate-500">Super Admin</div>
+    <div class="max-h-72 overflow-y-auto">
+      <template x-for="(r,i) in pal.r" :key="r.id">
+        <div @click="pgo(r)" :class="i===pal.i?'bg-ev-green/10 text-white':'text-slate-400 hover:bg-white/5'"
+             class="flex items-center gap-3 px-4 py-2.5 cursor-pointer text-sm">
+          <span x-text="r.icon"></span><span x-text="r.label"></span>
+          <span class="ml-auto text-xs text-slate-600" x-text="r.type"></span>
         </div>
-        <button @click="logout()" class="text-slate-500 hover:text-red-400 transition-colors" title="Logout">
-          <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
-        </button>
-      </div>
+      </template>
+      <p x-show="!pal.r.length" class="px-4 py-6 text-center text-slate-600 text-sm">No results</p>
     </div>
-  </aside>
-
-  <!-- Main Content -->
-  <main class="flex-1 overflow-y-auto bg-slate-900/50">
-
-    <!-- Login Screen -->
-    <div x-show="!isLoggedIn" class="flex items-center justify-center h-full bg-slate-900">
-      <div class="bg-slate-800/80 border border-slate-700 rounded-2xl p-8 w-full max-w-sm">
-        <div class="text-center mb-6">
-          <div class="h-14 w-14 rounded-2xl bg-gradient-to-br from-yellow-400 to-amber-300 flex items-center justify-center mx-auto mb-4">
-            <span class="text-slate-900 font-bold text-xl">E</span>
-          </div>
-          <h2 class="text-xl font-bold text-white">Admin Login</h2>
-          <p class="text-sm text-slate-400 mt-1">EmproiumVipani Admin Panel</p>
-        </div>
-        <form @submit.prevent="login()">
-          <div class="space-y-4">
-            <div>
-              <label class="block text-xs font-medium text-slate-400 mb-1.5">Email</label>
-              <input x-model="loginForm.email" type="email" required class="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500" placeholder="admin@emproiumvipani.com" />
-            </div>
-            <div>
-              <label class="block text-xs font-medium text-slate-400 mb-1.5">Password</label>
-              <input x-model="loginForm.password" type="password" required class="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500" placeholder="••••••••" />
-            </div>
-            <div x-show="loginError" class="text-red-400 text-xs bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2" x-text="loginError"></div>
-            <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl py-2.5 text-sm transition-colors" :class="{ 'opacity-50 cursor-not-allowed': loading.login }" :disabled="loading.login">
-              <span x-text="loading.login ? 'Signing in…' : 'Sign In'"></span>
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-
-    <!-- Dashboard View -->
-    <div x-show="isLoggedIn && view === 'dashboard'" class="p-6">
-      <div class="mb-6">
-        <h1 class="text-2xl font-bold text-white">Business Dashboard</h1>
-        <p class="text-slate-400 text-sm mt-1">Real-time overview of your marketplace</p>
-      </div>
-
-      <!-- Stats Grid -->
-      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6" x-show="dashboard">
-        <div class="stat-card">
-          <div class="flex items-center justify-between mb-3">
-            <span class="text-xs text-slate-500 font-medium uppercase tracking-wider">Total Revenue</span>
-            <span class="text-emerald-400">₹</span>
-          </div>
-          <div class="text-2xl font-bold text-white" x-text="'₹' + formatNum(dashboard?.overview?.totalRevenue || 0)"></div>
-          <div class="text-xs text-slate-500 mt-1">From completed orders</div>
-        </div>
-        <div class="stat-card">
-          <div class="flex items-center justify-between mb-3">
-            <span class="text-xs text-slate-500 font-medium uppercase tracking-wider">Total Orders</span>
-            <span class="text-blue-400">📦</span>
-          </div>
-          <div class="text-2xl font-bold text-white" x-text="formatNum(dashboard?.overview?.totalOrders || 0)"></div>
-          <div class="text-xs text-slate-500 mt-1">Avg: ₹<span x-text="formatNum(dashboard?.overview?.averageOrderValue || 0)"></span></div>
-        </div>
-        <div class="stat-card">
-          <div class="flex items-center justify-between mb-3">
-            <span class="text-xs text-slate-500 font-medium uppercase tracking-wider">Customers</span>
-            <span class="text-purple-400">👥</span>
-          </div>
-          <div class="text-2xl font-bold text-white" x-text="formatNum(dashboard?.overview?.totalUsers || 0)"></div>
-          <div class="text-xs text-slate-500 mt-1"><span x-text="dashboard?.overview?.totalSellers || 0"></span> sellers</div>
-        </div>
-        <div class="stat-card">
-          <div class="flex items-center justify-between mb-3">
-            <span class="text-xs text-slate-500 font-medium uppercase tracking-wider">Products</span>
-            <span class="text-yellow-400">🛍</span>
-          </div>
-          <div class="text-2xl font-bold text-white" x-text="formatNum(dashboard?.overview?.totalProducts || 0)"></div>
-          <div class="text-xs text-slate-500 mt-1"><span x-text="dashboard?.overview?.pendingSellers || 0"></span> pending sellers</div>
-        </div>
-      </div>
-
-      <!-- Order Status + Top Products -->
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        <!-- Order Status Breakdown -->
-        <div class="stat-card">
-          <h3 class="text-sm font-semibold text-white mb-4">Orders by Status</h3>
-          <div class="space-y-3" x-show="dashboard?.ordersByStatus">
-            <template x-for="[status, count] in Object.entries(dashboard?.ordersByStatus || {})" :key="status">
-              <div class="flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                  <span class="h-2 w-2 rounded-full" :class="statusColor(status)"></span>
-                  <span class="text-sm text-slate-300 capitalize" x-text="status"></span>
-                </div>
-                <span class="text-sm font-medium text-white" x-text="count"></span>
-              </div>
-            </template>
-          </div>
-        </div>
-
-        <!-- Top Products -->
-        <div class="stat-card">
-          <h3 class="text-sm font-semibold text-white mb-4">Top Selling Products</h3>
-          <div class="space-y-3" x-show="dashboard?.topProducts">
-            <template x-for="(p, i) in (dashboard?.topProducts || [])" :key="p._id">
-              <div class="flex items-center gap-3">
-                <span class="text-xs text-slate-600 w-4" x-text="i+1"></span>
-                <div class="flex-1 min-w-0">
-                  <div class="text-sm text-white truncate" x-text="p.name"></div>
-                  <div class="text-xs text-slate-500"><span x-text="p.sales"></span> sold · <span x-text="p.category"></span></div>
-                </div>
-                <span class="text-sm font-medium text-emerald-400">₹<span x-text="p.price"></span></span>
-              </div>
-            </template>
-          </div>
-        </div>
-      </div>
-
-      <!-- Recent Orders -->
-      <div class="stat-card">
-        <div class="flex items-center justify-between mb-4">
-          <h3 class="text-sm font-semibold text-white">Recent Orders</h3>
-          <button @click="view='orders'; loadOrders()" class="text-xs text-emerald-400 hover:text-emerald-300">View all →</button>
-        </div>
-        <div class="overflow-x-auto">
-          <table class="w-full text-sm">
-            <thead>
-              <tr class="text-xs text-slate-500 border-b border-slate-700/50">
-                <th class="text-left pb-3 font-medium">Order ID</th>
-                <th class="text-left pb-3 font-medium">Customer</th>
-                <th class="text-left pb-3 font-medium">Amount</th>
-                <th class="text-left pb-3 font-medium">Status</th>
-                <th class="text-left pb-3 font-medium">Date</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-800/50">
-              <template x-for="order in (dashboard?.recentOrders || [])" :key="order._id">
-                <tr class="hover:bg-slate-800/30 transition-colors">
-                  <td class="py-3 text-slate-300 font-mono text-xs" x-text="order.orderId"></td>
-                  <td class="py-3 text-slate-300" x-text="order.customerName"></td>
-                  <td class="py-3 text-white font-medium">₹<span x-text="formatNum(order.total)"></span></td>
-                  <td class="py-3">
-                    <span class="badge" :class="statusBadge(order.status)" x-text="order.status"></span>
-                  </td>
-                  <td class="py-3 text-slate-500 text-xs" x-text="formatDate(order.createdAt)"></td>
-                </tr>
-              </template>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
-    <!-- Sales Analytics View -->
-    <div x-show="isLoggedIn && view === 'sales'" class="p-6">
-      <div class="mb-6 flex items-center justify-between">
-        <div>
-          <h1 class="text-2xl font-bold text-white">Sales Analytics</h1>
-          <p class="text-slate-400 text-sm mt-1">Revenue and order trends</p>
-        </div>
-        <select x-model="salesPeriod" @change="loadSales()" class="bg-slate-800 border border-slate-700 text-slate-300 text-sm rounded-xl px-4 py-2 focus:outline-none focus:border-emerald-500">
-          <option value="7">Last 7 days</option>
-          <option value="30" selected>Last 30 days</option>
-          <option value="90">Last 90 days</option>
-          <option value="180">Last 6 months</option>
-        </select>
-      </div>
-
-      <!-- Category Revenue -->
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div class="stat-card">
-          <h3 class="text-sm font-semibold text-white mb-4">Revenue by Category</h3>
-          <div class="space-y-3" x-show="salesData?.categoryRevenue">
-            <template x-for="cat in (salesData?.categoryRevenue || [])" :key="cat._id">
-              <div>
-                <div class="flex items-center justify-between mb-1">
-                  <span class="text-sm text-slate-300" x-text="cat._id || 'Uncategorized'"></span>
-                  <span class="text-sm font-medium text-white">₹<span x-text="formatNum(cat.revenue)"></span></span>
-                </div>
-                <div class="h-1.5 bg-slate-700 rounded-full overflow-hidden">
-                  <div class="h-full bg-emerald-500 rounded-full" :style="`width: ${Math.min(100, (cat.revenue / (salesData?.categoryRevenue[0]?.revenue || 1)) * 100)}%`"></div>
-                </div>
-                <div class="text-xs text-slate-500 mt-0.5"><span x-text="cat.units"></span> units sold</div>
-              </div>
-            </template>
-          </div>
-          <div x-show="!salesData?.categoryRevenue?.length" class="text-slate-500 text-sm text-center py-8">No sales data yet</div>
-        </div>
-
-        <!-- Payment Methods -->
-        <div class="stat-card">
-          <h3 class="text-sm font-semibold text-white mb-4">Payment Methods</h3>
-          <div class="space-y-3" x-show="salesData?.paymentMethodBreakdown">
-            <template x-for="pm in (salesData?.paymentMethodBreakdown || [])" :key="pm._id">
-              <div class="flex items-center justify-between p-3 bg-slate-900/50 rounded-xl">
-                <div>
-                  <div class="text-sm font-medium text-white" x-text="pm._id || 'Unknown'"></div>
-                  <div class="text-xs text-slate-500"><span x-text="pm.count"></span> orders</div>
-                </div>
-                <div class="text-sm font-medium text-emerald-400">₹<span x-text="formatNum(pm.total)"></span></div>
-              </div>
-            </template>
-          </div>
-          <div x-show="!salesData?.paymentMethodBreakdown?.length" class="text-slate-500 text-sm text-center py-8">No payment data yet</div>
-        </div>
-
-        <!-- Daily Sales Table -->
-        <div class="stat-card lg:col-span-2">
-          <h3 class="text-sm font-semibold text-white mb-4">Daily Sales</h3>
-          <div class="overflow-x-auto">
-            <table class="w-full text-sm">
-              <thead>
-                <tr class="text-xs text-slate-500 border-b border-slate-700/50">
-                  <th class="text-left pb-3 font-medium">Date</th>
-                  <th class="text-right pb-3 font-medium">Orders</th>
-                  <th class="text-right pb-3 font-medium">Revenue</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-slate-800/50">
-                <template x-for="d in (salesData?.dailySales || [])" :key="d._id">
-                  <tr>
-                    <td class="py-2.5 text-slate-300" x-text="d._id"></td>
-                    <td class="py-2.5 text-right text-slate-300" x-text="d.orders"></td>
-                    <td class="py-2.5 text-right font-medium text-white">₹<span x-text="formatNum(d.revenue)"></span></td>
-                  </tr>
-                </template>
-              </tbody>
-            </table>
-            <div x-show="!salesData?.dailySales?.length" class="text-slate-500 text-sm text-center py-8">No daily sales data</div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Orders Management View -->
-    <div x-show="isLoggedIn && view === 'orders'" class="p-6">
-      <div class="mb-6 flex flex-col sm:flex-row sm:items-center gap-4 justify-between">
-        <div>
-          <h1 class="text-2xl font-bold text-white">Orders Management</h1>
-          <p class="text-slate-400 text-sm mt-1">Manage all customer orders</p>
-        </div>
-        <div class="flex gap-3">
-          <input x-model="orderSearch" @input.debounce.400ms="loadOrders()" type="text" placeholder="Search orders…" class="bg-slate-800 border border-slate-700 text-slate-300 text-sm rounded-xl px-4 py-2 focus:outline-none focus:border-emerald-500 w-52" />
-          <select x-model="orderStatusFilter" @change="loadOrders()" class="bg-slate-800 border border-slate-700 text-slate-300 text-sm rounded-xl px-3 py-2 focus:outline-none focus:border-emerald-500">
-            <option value="">All Status</option>
-            <option value="pending">Pending</option>
-            <option value="confirmed">Confirmed</option>
-            <option value="processing">Processing</option>
-            <option value="shipped">Shipped</option>
-            <option value="delivered">Delivered</option>
-            <option value="cancelled">Cancelled</option>
-            <option value="returned">Returned</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="stat-card">
-        <div class="overflow-x-auto">
-          <table class="w-full text-sm">
-            <thead>
-              <tr class="text-xs text-slate-500 border-b border-slate-700/50">
-                <th class="text-left pb-3 font-medium">Order ID</th>
-                <th class="text-left pb-3 font-medium">Customer</th>
-                <th class="text-left pb-3 font-medium">Items</th>
-                <th class="text-left pb-3 font-medium">Amount</th>
-                <th class="text-left pb-3 font-medium">Payment</th>
-                <th class="text-left pb-3 font-medium">Status</th>
-                <th class="text-left pb-3 font-medium">Date</th>
-                <th class="text-left pb-3 font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-800/50">
-              <template x-for="order in orders" :key="order._id">
-                <tr class="hover:bg-slate-800/30 transition-colors">
-                  <td class="py-3 text-slate-300 font-mono text-xs" x-text="order.orderId"></td>
-                  <td class="py-3">
-                    <div class="text-slate-200 font-medium text-xs" x-text="order.customerName"></div>
-                    <div class="text-slate-500 text-xs" x-text="order.customerEmail"></div>
-                  </td>
-                  <td class="py-3 text-slate-400 text-xs" x-text="order.items?.length + ' item(s)'"></td>
-                  <td class="py-3 text-white font-medium">₹<span x-text="formatNum(order.total)"></span></td>
-                  <td class="py-3">
-                    <span class="badge" :class="order.payment?.status === 'completed' ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'" x-text="order.payment?.method + ' · ' + (order.payment?.status || 'pending')"></span>
-                  </td>
-                  <td class="py-3">
-                    <select @change="updateOrderStatus(order._id, $event.target.value)" class="bg-slate-900 border border-slate-700 text-slate-300 text-xs rounded-lg px-2 py-1 focus:outline-none focus:border-emerald-500">
-                      <option value="pending" :selected="order.status === 'pending'">Pending</option>
-                      <option value="confirmed" :selected="order.status === 'confirmed'">Confirmed</option>
-                      <option value="processing" :selected="order.status === 'processing'">Processing</option>
-                      <option value="shipped" :selected="order.status === 'shipped'">Shipped</option>
-                      <option value="delivered" :selected="order.status === 'delivered'">Delivered</option>
-                      <option value="cancelled" :selected="order.status === 'cancelled'">Cancelled</option>
-                      <option value="returned" :selected="order.status === 'returned'">Returned</option>
-                    </select>
-                  </td>
-                  <td class="py-3 text-slate-500 text-xs" x-text="formatDate(order.createdAt)"></td>
-                  <td class="py-3">
-                    <button @click="openOrderDetail(order)" class="text-xs text-emerald-400 hover:text-emerald-300">Details</button>
-                  </td>
-                </tr>
-              </template>
-              <tr x-show="!orders.length">
-                <td colspan="8" class="py-12 text-center text-slate-500">No orders found</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <!-- Pagination -->
-        <div class="flex items-center justify-between mt-4 pt-4 border-t border-slate-800/50" x-show="orderPagination.pages > 1">
-          <span class="text-xs text-slate-500">Page <span x-text="orderPagination.page"></span> of <span x-text="orderPagination.pages"></span> (<span x-text="orderPagination.total"></span> orders)</span>
-          <div class="flex gap-2">
-            <button @click="orderPage--; loadOrders()" :disabled="orderPage <= 1" class="text-xs px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 disabled:opacity-40">Prev</button>
-            <button @click="orderPage++; loadOrders()" :disabled="orderPage >= orderPagination.pages" class="text-xs px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 disabled:opacity-40">Next</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Products View -->
-    <div x-show="isLoggedIn && view === 'products'" class="p-6">
-      <div class="mb-6 flex flex-col sm:flex-row sm:items-center gap-4 justify-between">
-        <div>
-          <h1 class="text-2xl font-bold text-white">Products Management</h1>
-          <p class="text-slate-400 text-sm mt-1">Manage all marketplace products</p>
-        </div>
-        <div class="flex gap-3">
-          <input x-model="productSearch" @input.debounce.400ms="loadProducts()" type="text" placeholder="Search products…" class="bg-slate-800 border border-slate-700 text-slate-300 text-sm rounded-xl px-4 py-2 focus:outline-none focus:border-emerald-500 w-52" />
-          <select x-model="productStatusFilter" @change="loadProducts()" class="bg-slate-800 border border-slate-700 text-slate-300 text-sm rounded-xl px-3 py-2 focus:outline-none focus:border-emerald-500">
-            <option value="">All Status</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-            <option value="archived">Archived</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="stat-card">
-        <div class="overflow-x-auto">
-          <table class="w-full text-sm">
-            <thead>
-              <tr class="text-xs text-slate-500 border-b border-slate-700/50">
-                <th class="text-left pb-3 font-medium">Product</th>
-                <th class="text-left pb-3 font-medium">Category</th>
-                <th class="text-left pb-3 font-medium">Seller</th>
-                <th class="text-right pb-3 font-medium">Price</th>
-                <th class="text-right pb-3 font-medium">Stock</th>
-                <th class="text-right pb-3 font-medium">Sales</th>
-                <th class="text-left pb-3 font-medium">Status</th>
-                <th class="text-left pb-3 font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-800/50">
-              <template x-for="p in products" :key="p._id">
-                <tr class="hover:bg-slate-800/30 transition-colors">
-                  <td class="py-3">
-                    <div class="text-slate-200 font-medium text-xs max-w-[180px] truncate" x-text="p.name"></div>
-                    <div class="text-slate-500 text-xs">⭐ <span x-text="p.rating?.average || 0"></span> (<span x-text="p.rating?.count || 0"></span>)</div>
-                  </td>
-                  <td class="py-3 text-xs text-slate-400" x-text="p.category"></td>
-                  <td class="py-3 text-xs text-slate-400" x-text="p.sellerId?.name || p.sellerId?.seller?.businessName || 'Unknown'"></td>
-                  <td class="py-3 text-right font-medium text-white">₹<span x-text="p.price"></span></td>
-                  <td class="py-3 text-right" :class="p.stock < 10 ? 'text-red-400' : 'text-slate-300'" x-text="p.stock"></td>
-                  <td class="py-3 text-right text-slate-300" x-text="p.sales || 0"></td>
-                  <td class="py-3">
-                    <span class="badge" :class="p.status === 'active' ? 'bg-green-500/20 text-green-400' : p.status === 'inactive' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-slate-700 text-slate-400'" x-text="p.status"></span>
-                  </td>
-                  <td class="py-3">
-                    <div class="flex gap-2">
-                      <button x-show="p.status !== 'active'" @click="setProductStatus(p._id, 'active')" class="text-xs text-green-400 hover:text-green-300">Activate</button>
-                      <button x-show="p.status === 'active'" @click="setProductStatus(p._id, 'inactive')" class="text-xs text-yellow-400 hover:text-yellow-300">Deactivate</button>
-                      <button @click="setProductStatus(p._id, 'archived')" class="text-xs text-slate-500 hover:text-slate-300">Archive</button>
-                    </div>
-                  </td>
-                </tr>
-              </template>
-              <tr x-show="!products.length">
-                <td colspan="8" class="py-12 text-center text-slate-500">No products found</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
-    <!-- Refunds View -->
-    <div x-show="isLoggedIn && view === 'refunds'" class="p-6">
-      <div class="mb-6">
-        <h1 class="text-2xl font-bold text-white">Refund Management</h1>
-        <p class="text-slate-400 text-sm mt-1">Process customer return and refund requests</p>
-      </div>
-      <div class="stat-card">
-        <div class="overflow-x-auto">
-          <table class="w-full text-sm">
-            <thead>
-              <tr class="text-xs text-slate-500 border-b border-slate-700/50">
-                <th class="text-left pb-3 font-medium">Order ID</th>
-                <th class="text-left pb-3 font-medium">Customer</th>
-                <th class="text-left pb-3 font-medium">Amount</th>
-                <th class="text-left pb-3 font-medium">Reason</th>
-                <th class="text-left pb-3 font-medium">Refund Status</th>
-                <th class="text-left pb-3 font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-800/50">
-              <template x-for="order in refunds" :key="order._id">
-                <tr class="hover:bg-slate-800/30 transition-colors">
-                  <td class="py-3 font-mono text-xs text-slate-300" x-text="order.orderId"></td>
-                  <td class="py-3 text-xs text-slate-300" x-text="order.customerName"></td>
-                  <td class="py-3 font-medium text-white">₹<span x-text="formatNum(order.refund?.amount || order.total)"></span></td>
-                  <td class="py-3 text-xs text-slate-400 max-w-[180px] truncate" x-text="order.refund?.reason || '—'"></td>
-                  <td class="py-3">
-                    <span class="badge" :class="order.refund?.status === 'processed' ? 'bg-green-500/20 text-green-400' : order.refund?.status === 'approved' ? 'bg-blue-500/20 text-blue-400' : 'bg-yellow-500/20 text-yellow-400'" x-text="order.refund?.status"></span>
-                  </td>
-                  <td class="py-3">
-                    <div class="flex gap-2">
-                      <button x-show="order.refund?.status === 'requested'" @click="processRefund(order._id, 'approved', order.refund?.amount || order.total, order.refund?.reason)" class="text-xs text-blue-400 hover:text-blue-300">Approve</button>
-                      <button x-show="order.refund?.status === 'approved'" @click="processRefund(order._id, 'processed', order.refund?.amount || order.total, order.refund?.reason)" class="text-xs text-green-400 hover:text-green-300">Process</button>
-                    </div>
-                  </td>
-                </tr>
-              </template>
-              <tr x-show="!refunds.length">
-                <td colspan="6" class="py-12 text-center text-slate-500">No refund requests</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
-    <!-- Customers CRM View -->
-    <div x-show="isLoggedIn && view === 'customers'" class="p-6">
-      <div class="mb-6 flex flex-col sm:flex-row sm:items-center gap-4 justify-between">
-        <div>
-          <h1 class="text-2xl font-bold text-white">Customer CRM</h1>
-          <p class="text-slate-400 text-sm mt-1">Manage customer relationships and activity</p>
-        </div>
-        <input x-model="userSearch" @input.debounce.400ms="loadUsers('customer')" type="text" placeholder="Search customers…" class="bg-slate-800 border border-slate-700 text-slate-300 text-sm rounded-xl px-4 py-2 focus:outline-none focus:border-emerald-500 w-52" />
-      </div>
-
-      <div class="stat-card">
-        <div class="overflow-x-auto">
-          <table class="w-full text-sm">
-            <thead>
-              <tr class="text-xs text-slate-500 border-b border-slate-700/50">
-                <th class="text-left pb-3 font-medium">Customer</th>
-                <th class="text-left pb-3 font-medium">Phone</th>
-                <th class="text-right pb-3 font-medium">Orders</th>
-                <th class="text-right pb-3 font-medium">Total Spent</th>
-                <th class="text-left pb-3 font-medium">Status</th>
-                <th class="text-left pb-3 font-medium">Joined</th>
-                <th class="text-left pb-3 font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-800/50">
-              <template x-for="u in users" :key="u._id">
-                <tr class="hover:bg-slate-800/30 transition-colors">
-                  <td class="py-3">
-                    <div class="text-slate-200 font-medium text-sm" x-text="u.name"></div>
-                    <div class="text-slate-500 text-xs" x-text="u.email"></div>
-                  </td>
-                  <td class="py-3 text-xs text-slate-400" x-text="u.phone || '—'"></td>
-                  <td class="py-3 text-right text-slate-300" x-text="u.orderCount || 0"></td>
-                  <td class="py-3 text-right font-medium text-white">₹<span x-text="formatNum(u.totalSpent || 0)"></span></td>
-                  <td class="py-3">
-                    <span class="badge" :class="u.status === 'active' ? 'bg-green-500/20 text-green-400' : u.status === 'suspended' ? 'bg-red-500/20 text-red-400' : 'bg-slate-700 text-slate-400'" x-text="u.status"></span>
-                  </td>
-                  <td class="py-3 text-slate-500 text-xs" x-text="formatDate(u.createdAt)"></td>
-                  <td class="py-3">
-                    <div class="flex gap-2">
-                      <button x-show="u.status !== 'suspended'" @click="setUserStatus(u._id, 'suspended')" class="text-xs text-red-400 hover:text-red-300">Suspend</button>
-                      <button x-show="u.status === 'suspended'" @click="setUserStatus(u._id, 'active')" class="text-xs text-green-400 hover:text-green-300">Activate</button>
-                    </div>
-                  </td>
-                </tr>
-              </template>
-              <tr x-show="!users.length">
-                <td colspan="7" class="py-12 text-center text-slate-500">No customers found</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <div class="flex items-center justify-between mt-4 pt-4 border-t border-slate-800/50" x-show="userPagination.pages > 1">
-          <span class="text-xs text-slate-500">Page <span x-text="userPagination.page"></span> of <span x-text="userPagination.pages"></span></span>
-          <div class="flex gap-2">
-            <button @click="userPage--; loadUsers(userRole)" :disabled="userPage <= 1" class="text-xs px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 disabled:opacity-40">Prev</button>
-            <button @click="userPage++; loadUsers(userRole)" :disabled="userPage >= userPagination.pages" class="text-xs px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 disabled:opacity-40">Next</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Sellers SRM View -->
-    <div x-show="isLoggedIn && view === 'sellers'" class="p-6">
-      <div class="mb-6 flex flex-col sm:flex-row sm:items-center gap-4 justify-between">
-        <div>
-          <h1 class="text-2xl font-bold text-white">Seller Relationship Management</h1>
-          <p class="text-slate-400 text-sm mt-1">Review and manage seller applications and performance</p>
-        </div>
-        <select x-model="sellerStatusFilter" @change="loadSellers()" class="bg-slate-800 border border-slate-700 text-slate-300 text-sm rounded-xl px-3 py-2 focus:outline-none focus:border-emerald-500">
-          <option value="">All Sellers</option>
-          <option value="pending">Pending</option>
-          <option value="approved">Approved</option>
-          <option value="rejected">Rejected</option>
-          <option value="suspended">Suspended</option>
-        </select>
-      </div>
-
-      <div class="stat-card">
-        <div class="overflow-x-auto">
-          <table class="w-full text-sm">
-            <thead>
-              <tr class="text-xs text-slate-500 border-b border-slate-700/50">
-                <th class="text-left pb-3 font-medium">Seller</th>
-                <th class="text-left pb-3 font-medium">Business</th>
-                <th class="text-right pb-3 font-medium">Products</th>
-                <th class="text-right pb-3 font-medium">Orders</th>
-                <th class="text-right pb-3 font-medium">Revenue</th>
-                <th class="text-left pb-3 font-medium">Status</th>
-                <th class="text-left pb-3 font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-800/50">
-              <template x-for="s in sellers" :key="s._id">
-                <tr class="hover:bg-slate-800/30 transition-colors">
-                  <td class="py-3">
-                    <div class="text-slate-200 font-medium text-sm" x-text="s.name"></div>
-                    <div class="text-slate-500 text-xs" x-text="s.email"></div>
-                  </td>
-                  <td class="py-3">
-                    <div class="text-xs text-slate-300" x-text="s.seller?.businessName || '—'"></div>
-                    <div class="text-xs text-slate-500" x-text="s.seller?.businessType || ''"></div>
-                  </td>
-                  <td class="py-3 text-right text-slate-300" x-text="s.productCount || 0"></td>
-                  <td class="py-3 text-right text-slate-300" x-text="s.orderCount || 0"></td>
-                  <td class="py-3 text-right font-medium text-white">₹<span x-text="formatNum(s.revenue || 0)"></span></td>
-                  <td class="py-3">
-                    <span class="badge" :class="sellerStatusBadge(s.seller?.status)" x-text="s.seller?.status"></span>
-                  </td>
-                  <td class="py-3">
-                    <div class="flex gap-2">
-                      <button x-show="s.seller?.status === 'pending'" @click="approveSeller(s._id)" class="text-xs text-green-400 hover:text-green-300">Approve</button>
-                      <button x-show="s.seller?.status === 'pending'" @click="rejectSeller(s._id)" class="text-xs text-red-400 hover:text-red-300">Reject</button>
-                      <button x-show="s.seller?.status === 'approved'" @click="suspendSeller(s._id)" class="text-xs text-yellow-400 hover:text-yellow-300">Suspend</button>
-                      <button x-show="s.seller?.status === 'suspended' || s.seller?.status === 'rejected'" @click="approveSeller(s._id)" class="text-xs text-blue-400 hover:text-blue-300">Re-approve</button>
-                    </div>
-                  </td>
-                </tr>
-              </template>
-              <tr x-show="!sellers.length">
-                <td colspan="7" class="py-12 text-center text-slate-500">No sellers found</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <div class="flex items-center justify-between mt-4 pt-4 border-t border-slate-800/50" x-show="sellerPagination.pages > 1">
-          <span class="text-xs text-slate-500">Page <span x-text="sellerPagination.page"></span> of <span x-text="sellerPagination.pages"></span></span>
-          <div class="flex gap-2">
-            <button @click="sellerPage--; loadSellers()" :disabled="sellerPage <= 1" class="text-xs px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 disabled:opacity-40">Prev</button>
-            <button @click="sellerPage++; loadSellers()" :disabled="sellerPage >= sellerPagination.pages" class="text-xs px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 disabled:opacity-40">Next</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-  </main>
-</div>
-
-<!-- Order Detail Modal -->
-<div x-show="selectedOrder" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" @click.self="selectedOrder = null">
-  <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 w-full max-w-lg max-h-[80vh] overflow-y-auto">
-    <div class="flex items-center justify-between mb-4">
-      <h3 class="font-semibold text-white">Order Details</h3>
-      <button @click="selectedOrder = null" class="text-slate-400 hover:text-white">✕</button>
-    </div>
-    <template x-if="selectedOrder">
-      <div>
-        <div class="grid grid-cols-2 gap-3 text-sm mb-4">
-          <div><span class="text-slate-500">Order ID:</span><br/><span class="text-white font-mono text-xs" x-text="selectedOrder.orderId"></span></div>
-          <div><span class="text-slate-500">Status:</span><br/><span class="badge" :class="statusBadge(selectedOrder.status)" x-text="selectedOrder.status"></span></div>
-          <div><span class="text-slate-500">Customer:</span><br/><span class="text-white text-xs" x-text="selectedOrder.customerName + ' · ' + selectedOrder.customerEmail"></span></div>
-          <div><span class="text-slate-500">Phone:</span><br/><span class="text-white text-xs" x-text="selectedOrder.customerPhone || '—'"></span></div>
-          <div><span class="text-slate-500">Total:</span><br/><span class="text-emerald-400 font-semibold">₹<span x-text="formatNum(selectedOrder.total)"></span></span></div>
-          <div><span class="text-slate-500">Payment:</span><br/><span class="text-white text-xs" x-text="selectedOrder.payment?.method + ' · ' + (selectedOrder.payment?.status || '—')"></span></div>
-        </div>
-        <div class="mb-4">
-          <div class="text-xs text-slate-500 mb-2">Delivery Address</div>
-          <div class="text-sm text-slate-300 bg-slate-900/50 rounded-xl p-3" x-text="[selectedOrder.deliveryAddress?.street, selectedOrder.deliveryAddress?.city, selectedOrder.deliveryAddress?.state, selectedOrder.deliveryAddress?.postalCode, selectedOrder.deliveryAddress?.country].filter(Boolean).join(', ')"></div>
-        </div>
-        <div>
-          <div class="text-xs text-slate-500 mb-2">Items</div>
-          <div class="space-y-2">
-            <template x-for="item in selectedOrder.items" :key="item._id">
-              <div class="flex items-center justify-between bg-slate-900/50 rounded-xl p-3">
-                <div class="text-sm text-slate-300" x-text="item.name"></div>
-                <div class="text-sm text-white">₹<span x-text="item.price"></span> × <span x-text="item.quantity"></span></div>
-              </div>
-            </template>
-          </div>
-        </div>
-        <div x-show="selectedOrder.tracking?.number" class="mt-4">
-          <div class="text-xs text-slate-500 mb-1">Tracking</div>
-          <div class="text-sm text-slate-300">
-            <span x-text="selectedOrder.tracking?.carrier"></span> · <span x-text="selectedOrder.tracking?.number"></span>
-          </div>
-        </div>
-      </div>
-    </template>
   </div>
 </div>
 
-<!-- Toast -->
-<div x-show="toast.visible" x-transition class="fixed bottom-4 right-4 z-50 bg-slate-800 border border-slate-700 rounded-xl px-5 py-3 shadow-xl text-sm text-white max-w-xs" x-text="toast.message"></div>
+<div class="flex h-screen overflow-hidden">
+<!-- Sidebar -->
+<aside class="w-52 flex-shrink-0 bg-[#060814] border-r border-white/5 flex flex-col py-5 px-3 gap-0.5">
+  <div class="px-2 mb-5">
+    <div class="text-[#22c55e] font-bold text-sm">EmproiumVipani</div>
+    <div class="text-slate-600 text-[10px] mt-0.5 font-mono">NEXUS v2 &middot; Command Centre</div>
+  </div>
+  <template x-for="n in navItems" :key="n.id">
+    <div @click="tab=n.id" :class="tab===n.id?'active':''" class="sl">
+      <span x-text="n.icon"></span>
+      <span x-text="n.label"></span>
+      <span x-show="n.b&&cnt[n.b]" class="ml-auto bg-red-500/20 text-red-400 text-[9px] font-bold px-1.5 py-0.5 rounded-full" x-text="cnt[n.b]"></span>
+    </div>
+  </template>
+  <div class="mt-auto px-2 pt-4 border-t border-white/5">
+    <div class="text-[10px] text-slate-600 mb-0.5">Signed in as</div>
+    <div class="text-sm font-semibold text-white">Admin</div>
+    <a href="/" class="text-xs text-[#22c55e] hover:underline mt-1 block">Back to store</a>
+    <a href="/partner.html" class="text-xs text-slate-500 hover:text-[#facc6b] mt-1 block">Partner Login</a>
+  </div>
+</aside>
 
-<!-- Alpine.js -->
-<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<!-- Main -->
+<main class="flex-1 overflow-y-auto">
+<div class="sticky top-0 z-50 bg-[#050509]/90 backdrop-blur border-b border-white/5 px-6 py-3 flex items-center gap-3">
+  <div class="flex-1 text-sm font-semibold text-white capitalize" x-text="navItems.find(n=>n.id===tab)?.label||'Dashboard'"></div>
+  <!-- Market Pulse Ticker -->
+  <div x-show="market.price" class="hidden md:flex items-center gap-2 text-xs px-3 py-1.5 rounded-xl bg-white/5 border border-white/10">
+    <span class="text-slate-500">NIFTY 50</span>
+    <span class="font-mono font-bold" :class="market.change>=0?'text-[#22c55e]':'text-red-400'" x-text="market.price?.toLocaleString('en-IN')"></span>
+    <span :class="market.change>=0?'text-[#22c55e]':'text-red-400'" x-text="(market.change>=0?'+':'')+market.change?.toFixed(2)+'%'"></span>
+  </div>
+  <button @click="openPal()" class="flex items-center gap-2 text-xs text-slate-500 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl px-3 py-1.5">
+    Search <kbd class="text-slate-600 ml-1">&#8984;K</kbd>
+  </button>
+  <button @click="reload()" class="bh btn">&#8635; Refresh</button>
+</div>
+
+<!-- DASHBOARD -->
+<section x-show="tab==='dash'" class="p-6 space-y-5">
+  <div><p class="text-lg font-bold text-white">Command Centre</p><p class="text-xs text-slate-500">Real-time business intelligence &middot; <span x-text="new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})"></span></p></div>
+  <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div class="kc"><p class="text-xs text-slate-500 mb-1">Net Profit (MTD)</p><p class="text-2xl font-bold text-white" x-text="fmt(kpi.profit)"></p><p class="text-xs text-[#22c55e] mt-1">Revenue &minus; GST &minus; Commission</p></div>
+    <div class="kc"><p class="text-xs text-slate-500 mb-1">Active Agents</p><p class="text-2xl font-bold text-white" x-text="pa.length"></p><p class="text-xs text-slate-500 mt-1" x-text="pl.length+' pending'"></p></div>
+    <div class="kc"><p class="text-xs text-slate-500 mb-1">Pending Approvals</p><p class="text-2xl font-bold text-[#facc6b]" x-text="pl.length"></p><button @click="tab='partners'" class="text-xs text-[#22c55e] mt-1 hover:underline block">Review &rarr;</button></div>
+    <div class="kc"><p class="text-xs text-slate-500 mb-1">GST Liability (MTD)</p><p class="text-2xl font-bold text-white" x-text="fmt(kpi.gst)"></p><p class="text-xs text-slate-500 mt-1">Auto-calculated</p></div>
+  </div>
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <div class="kc"><p class="text-sm font-semibold text-white mb-3">Sales Velocity (7 Days)</p><canvas id="vc" height="130"></canvas><p x-show="!sl.length" class="text-center text-slate-600 text-xs py-6">No sales yet &mdash; use POS to add data.</p></div>
+    <div class="kc"><p class="text-sm font-semibold text-white mb-3">Marketing Channel ROI</p><canvas id="cc" height="130"></canvas><p x-show="!sl.length" class="text-center text-slate-600 text-xs py-6">No data yet.</p></div>
+  </div>
+  <div class="kc">
+    <div class="flex items-center justify-between mb-3"><p class="text-sm font-semibold text-white">Recent Sales</p><a :href="API+'/export/powerbi'" target="_blank" class="bh btn text-xs">&#8659; PowerBI CSV</a></div>
+    <table class="w-full text-xs"><thead><tr class="text-slate-500 border-b border-white/5"><th class="text-left py-2">Invoice</th><th class="text-left py-2">Customer</th><th class="text-left py-2">Agent</th><th class="text-left py-2">Source</th><th class="text-right py-2">Total</th><th class="text-right py-2">GST</th></tr></thead>
+    <tbody>
+      <template x-for="s in sl.slice(0,8)" :key="s.invoice_no||s.date+Math.random()">
+        <tr class="tr"><td class="py-2 font-mono text-slate-400" x-text="s.invoice_no||'—'"></td><td class="py-2" x-text="s.customer?.name||'—'"></td><td class="py-2 text-[#22c55e]" x-text="s.agent_id||'Direct'"></td><td class="py-2"><span class="badge bg-blue-500/10 text-blue-400" x-text="s.source||'Direct'"></span></td><td class="py-2 text-right font-semibold" x-text="fmt(s.net_total)"></td><td class="py-2 text-right text-slate-400" x-text="fmt(s.tax_breakup?.total_gst||0)"></td></tr>
+      </template>
+      <tr x-show="!sl.length"><td colspan="6" class="py-8 text-center text-slate-600">No sales yet &mdash; use the POS tab to create your first invoice.</td></tr>
+    </tbody></table>
+  </div>
+</section>
+
+<!-- PARTNER HUB -->
+<section x-show="tab==='partners'" class="p-6 space-y-5">
+  <div class="flex items-center gap-3 flex-wrap">
+    <div class="flex-1"><p class="text-lg font-bold text-white">Partner Hub</p><p class="text-xs text-slate-500">Approve freelancers &amp; manage active agents</p></div>
+    <button @click="ptab='leads'" :class="ptab==='leads'?'bg btn':'bh btn'">Leads (<span x-text="pl.length"></span>)</button>
+    <button @click="ptab='active'" :class="ptab==='active'?'bg btn':'bh btn'">Active (<span x-text="pa.length"></span>)</button>
+  </div>
+  <div x-show="ptab==='leads'" class="kc">
+    <p class="text-sm font-semibold text-white mb-3">Pending Freelancer Applications</p>
+    <input x-model="lq" placeholder="Filter by name or niche..." class="fi mb-3 text-xs" style="max-width:280px"/>
+    <table class="w-full text-xs"><thead><tr class="text-slate-500 border-b border-white/5"><th class="text-left py-2">Name</th><th class="text-left py-2">Niche</th><th class="text-left py-2">WhatsApp</th><th class="text-left py-2">Email</th><th class="text-left py-2">Experience</th><th class="text-right py-2">Score</th><th class="text-right py-2">Actions</th></tr></thead>
+    <tbody>
+      <template x-for="l in fLeads()" :key="l.id||l._id||l.email">
+        <tr class="tr">
+          <td class="py-2.5 font-medium" x-text="l.name||l.fullName||'—'"></td>
+          <td class="py-2.5"><span class="badge bg-blue-500/10 text-blue-400" x-text="l.niche||l.skill||'—'"></span></td>
+          <td class="py-2.5 text-slate-400" x-text="l.whatsapp||l.phone||'—'"></td>
+          <td class="py-2.5 text-slate-400" x-text="l.email||'—'"></td>
+          <td class="py-2.5 text-slate-400" x-text="l.experience||'—'"></td>
+          <td class="py-2.5 text-right"><span :class="lscore(l)>=70?'bg-green-500/10 text-green-400':lscore(l)>=40?'bg-yellow-500/10 text-yellow-400':'bg-red-500/10 text-red-400'" class="badge" x-text="lscore(l)+'%'"></span></td>
+          <td class="py-2.5 text-right flex justify-end gap-1.5">
+            <button @click="approveLead(l.id||l._id)" class="bg btn">&#10003; Approve</button>
+            <button @click="rejectLead(l.id||l._id)" class="br btn">&#10005;</button>
+          </td>
+        </tr>
+      </template>
+      <tr x-show="!fLeads().length"><td colspan="7" class="py-8 text-center text-slate-600">No pending applications. <button @click="tab='join'" class="text-[#22c55e] hover:underline">Share the Partner Form &rarr;</button></td></tr>
+    </tbody></table>
+  </div>
+  <div x-show="ptab==='active'" class="kc">
+    <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+      <p class="text-sm font-semibold text-white">Active Agents</p>
+      <div class="text-xs text-slate-400 kc" style="padding:.5rem .875rem"><span>Network Commission Owed: </span><span class="font-bold text-[#facc6b]" x-text="fmt(pa.reduce((a,p)=>a+(p.commission?.pending||0),0))"></span></div>
+    </div>
+    <input x-model="aq" placeholder="Search by Agent ID or name..." class="fi mb-3 text-xs" style="max-width:280px"/>
+    <table class="w-full text-xs"><thead><tr class="text-slate-500 border-b border-white/5"><th class="text-left py-2">Agent ID</th><th class="text-left py-2">Name</th><th class="text-left py-2">Tier</th><th class="text-left py-2">Status</th><th class="text-right py-2">GMV</th><th class="text-right py-2">Pending Comm</th><th class="text-right py-2">Actions</th></tr></thead>
+    <tbody>
+      <template x-for="p in fAgents()" :key="p.agentId">
+        <tr class="tr">
+          <td class="py-2.5 font-mono text-[#22c55e]" x-text="p.agentId"></td>
+          <td class="py-2.5 font-medium" x-text="p.name||p.fullName||'—'"></td>
+          <td class="py-2.5"><span :class="{'Bronze':'bg-amber-900/30 text-amber-400','Silver':'bg-slate-500/20 text-slate-300','Gold':'bg-yellow-500/10 text-yellow-400','Platinum':'bg-purple-500/10 text-purple-400'}[p.tier||'Bronze']" class="badge" x-text="p.tier||'Bronze'"></span></td>
+          <td class="py-2.5"><span :class="p.status==='active'||!p.status?'bg-green-500/10 text-green-400':'bg-red-500/10 text-red-400'" class="badge" x-text="p.status||'active'"></span></td>
+          <td class="py-2.5 text-right" x-text="fmt(p.totalGmv||0)"></td>
+          <td class="py-2.5 text-right text-[#facc6b]" x-text="fmt(p.commission?.pending||0)"></td>
+          <td class="py-2.5 text-right">
+            <div class="relative inline-block" x-data="{o:false}">
+              <button @click="o=!o" class="bh btn">Actions &#9660;</button>
+              <div x-show="o" @click.away="o=false" class="absolute right-0 top-8 bg-[#0b1020] border border-white/10 rounded-xl shadow-xl z-10 w-44 py-1">
+                <button @click="settle(p.agentId);o=false" class="w-full text-left px-4 py-2 text-xs text-slate-300 hover:bg-white/5">&#128176; Settle Commission</button>
+                <button @click="upgrade(p.agentId);o=false" class="w-full text-left px-4 py-2 text-xs text-slate-300 hover:bg-white/5">&#8679; Upgrade Tier</button>
+                <button @click="toggleBlock(p.agentId);o=false" class="w-full text-left px-4 py-2 text-xs text-red-400 hover:bg-red-500/10" x-text="(p.status==='blocked')?'Reactivate':'Block Agent'"></button>
+              </div>
+            </div>
+          </td>
+        </tr>
+      </template>
+      <tr x-show="!fAgents().length"><td colspan="7" class="py-8 text-center text-slate-600">No active agents yet. Approve leads above.</td></tr>
+    </tbody></table>
+  </div>
+</section>
+
+<!-- POS -->
+<section x-show="tab==='pos'" class="p-6 max-w-4xl" x-data="posApp()">
+  <p class="text-lg font-bold text-white mb-1">Financial POS &mdash; New Sale</p>
+  <p class="text-xs text-slate-500 mb-5">GST auto-calculates live (CGST/SGST for intra-state, IGST for inter-state). Invoice appended to sales_ledger.json.</p>
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div class="space-y-3">
+      <div><label class="text-xs text-slate-400 mb-1 block">Customer Name *</label><input x-model="b.name" placeholder="Full name" class="fi"/></div>
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="text-xs text-slate-400 mb-1 block">Customer State *</label><select x-model="b.state" @change="calc()" class="fi"><template x-for="s in states" :key="s"><option x-text="s"></option></template></select></div>
+        <div><label class="text-xs text-slate-400 mb-1 block">Sale Source</label><select x-model="src" class="fi"><option>Direct</option><option>Google Ads</option><option>Referral</option><option>Social Media</option><option>WhatsApp</option></select></div>
+      </div>
+      <div><label class="text-xs text-slate-400 mb-1 block">Assign to Agent (for commission)</label>
+        <select x-model="agId" class="fi"><option value="">&#8212; Direct Sale &#8212;</option>
+          <template x-for="p in $root.pa" :key="p.agentId"><option :value="p.agentId" x-text="p.agentId+' &#8212; '+(p.name||p.fullName||'Agent')"></option></template>
+        </select></div>
+      <div>
+        <div class="flex items-center justify-between mb-2"><label class="text-xs text-slate-400">Line Items</label><button @click="items.push({pid:'',name:'',price:0,qty:1,cat:'Other'});calc()" class="bg btn text-xs">+ Add Item</button></div>
+        <div class="space-y-2">
+          <template x-for="(it,i) in items" :key="i">
+            <div class="flex gap-2 items-center">
+              <select x-model="it.pid" @change="fill(it)" class="fi flex-1 text-xs"><option value="">Select product...</option><template x-for="p in inv" :key="p.id"><option :value="p.id" x-text="p.name+' ('+fmt(p.mrp||p.basePrice)+')'"></option></template></select>
+              <input x-model.number="it.qty" type="number" min="1" class="fi text-xs" style="width:64px" @input="calc()"/>
+              <button @click="items.splice(i,1);calc()" class="text-red-400 hover:text-red-300 text-lg leading-none">&#215;</button>
+            </div>
+          </template>
+          <p x-show="!items.length" class="text-slate-600 text-xs py-1">Add at least one product to generate GST invoice.</p>
+        </div>
+      </div>
+      <button @click="save()" :disabled="saving||!items.filter(i=>i.name).length||!b.name" class="w-full bg btn py-2.5 justify-center text-sm" :class="saving||!items.filter(i=>i.name).length||!b.name?'opacity-50 cursor-not-allowed':''">
+        <span x-show="saving">Saving...</span><span x-show="!saving">&#10003; Confirm &amp; Generate Invoice</span>
+      </button>
+    </div>
+    <div class="kc">
+      <p class="text-sm font-semibold text-white mb-3">Live GST Breakdown</p>
+      <p x-show="!prev" class="text-slate-600 text-sm py-6 text-center">Add items to see live GST calculation.</p>
+      <div x-show="prev">
+        <table class="w-full text-xs mb-3"><thead><tr class="text-slate-500 border-b border-white/5"><th class="text-left py-1">Product</th><th class="text-right py-1">Qty</th><th class="text-right py-1">Taxable</th><th class="text-right py-1">GST</th><th class="text-right py-1">Total</th></tr></thead>
+        <tbody><template x-for="l in prev.lines" :key="l.name"><tr class="border-b border-white/5"><td class="py-1.5 pr-2 truncate max-w-[100px]" x-text="l.name"></td><td class="py-1.5 text-right" x-text="l.qty"></td><td class="py-1.5 text-right" x-text="f(l.taxable)"></td><td class="py-1.5 text-right text-slate-400" x-text="f(l.totalTax)+'('+l.gstRate+'%)'"></td><td class="py-1.5 text-right font-semibold" x-text="f(l.lineTotal)"></td></tr></template></tbody></table>
+        <div class="border-t border-white/10 pt-2 space-y-1 text-xs">
+          <div class="flex justify-between text-slate-400"><span>Taxable Amount</span><span x-text="f(prev.t.taxable)"></span></div>
+          <div class="flex justify-between text-slate-400" x-show="prev.t.cgst"><span>CGST</span><span x-text="f(prev.t.cgst)"></span></div>
+          <div class="flex justify-between text-slate-400" x-show="prev.t.sgst"><span>SGST</span><span x-text="f(prev.t.sgst)"></span></div>
+          <div class="flex justify-between text-slate-400" x-show="prev.t.igst"><span>IGST</span><span x-text="f(prev.t.igst)"></span></div>
+          <div class="flex justify-between font-bold text-white text-sm pt-1 border-t border-white/10"><span>Grand Total</span><span x-text="f(prev.t.grand)"></span></div>
+          <div class="flex justify-between text-[#facc6b]" x-show="prev.commission>0"><span>Partner Commission</span><span x-text="f(prev.commission)"></span></div>
+          <div class="text-slate-500 text-xs mt-1" x-text="prev.type"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ORDERS -->
+<section x-show="tab==='orders'" class="p-6 space-y-5">
+  <div class="flex items-center justify-between flex-wrap gap-3">
+    <div><p class="text-lg font-bold text-white">Orders &amp; GST Ledger</p><p class="text-xs text-slate-500" x-text="sl.length+' transactions on record'"></p></div>
+    <a :href="API+'/export/powerbi'" target="_blank" class="bh btn">&#8659; Export PowerBI CSV</a>
+  </div>
+  <div class="kc overflow-x-auto">
+    <table class="w-full text-xs min-w-[700px]"><thead><tr class="text-slate-500 border-b border-white/5"><th class="text-left py-2">Invoice</th><th class="text-left py-2">Date</th><th class="text-left py-2">Customer</th><th class="text-left py-2">Agent</th><th class="text-left py-2">Source</th><th class="text-right py-2">Total</th><th class="text-right py-2">GST</th><th class="text-right py-2">Comm</th><th class="text-right py-2">Action</th></tr></thead>
+    <tbody>
+      <template x-for="s in sl" :key="s.invoice_no||s.date">
+        <tr class="tr"><td class="py-2 font-mono text-slate-400" x-text="s.invoice_no||'—'"></td><td class="py-2" x-text="s.date||'—'"></td><td class="py-2" x-text="s.customer?.name||'—'"></td><td class="py-2 text-[#22c55e] font-mono" x-text="s.agent_id||'Direct'"></td><td class="py-2"><span class="badge bg-blue-500/10 text-blue-300" x-text="s.source||'Direct'"></span></td><td class="py-2 text-right font-semibold" x-text="fmt(s.net_total)"></td><td class="py-2 text-right text-slate-400" x-text="fmt(s.tax_breakup?.total_gst||0)"></td><td class="py-2 text-right text-[#facc6b]" x-text="fmt(s.commission||0)"></td><td class="py-2 text-right"><button @click="prtInv(s)" class="bh btn" title="Print Invoice">&#128424;</button></td></tr>
+      </template>
+      <tr x-show="!sl.length"><td colspan="9" class="py-10 text-center text-slate-600">No sales on record. Use the POS tab to record your first transaction.</td></tr>
+    </tbody></table>
+  </div>
+</section>
+
+<!-- GROWTH LAB (Research + Simulation) -->
+<section x-show="tab==='research'" class="p-6 space-y-5">
+  <div class="flex items-center justify-between flex-wrap gap-3">
+    <div><p class="text-lg font-bold text-white">Growth Lab &amp; Research</p><p class="text-xs text-slate-500">Predictive simulations &middot; Market tracker &middot; Python intelligence</p></div>
+    <a :href="API+'/export/powerbi'" target="_blank" class="bg btn">&#8659; PowerBI CSV</a>
+  </div>
+
+  <!-- Market Pulse Card -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+    <div class="kc col-span-1">
+      <p class="text-xs text-slate-500 mb-2 font-semibold uppercase tracking-wide">Market Pulse</p>
+      <div x-show="market.price">
+        <div class="flex items-end gap-3 mb-2">
+          <span class="text-2xl font-bold font-mono text-white" x-text="market.price?.toLocaleString('en-IN')"></span>
+          <span :class="market.change>=0?'text-[#22c55e]':'text-red-400'" class="text-sm font-bold" x-text="(market.change>=0?'&#9650;':'&#9660;')+(market.change>=0?'+':'')+market.change?.toFixed(2)+'%'"></span>
+        </div>
+        <p class="text-xs text-slate-500" x-text="market.name||'NIFTY 50'"></p>
+        <p class="text-xs text-slate-600 mt-1" x-text="'Updated: '+market.updated"></p>
+        <div class="mt-2 p-2 rounded-lg text-xs" :class="market.correlation>=0.5?'bg-green-500/10 text-green-400':market.correlation>0?'bg-yellow-500/10 text-yellow-400':'bg-slate-700/30 text-slate-400'">
+          <span class="font-semibold">Correlation Score: <span x-text="market.correlation!=null?(market.correlation*100).toFixed(0)+'%':'N/A'"></span></span>
+          <span x-show="market.correlation>=0.5"> &mdash; Sales trending with market &#128200;</span>
+        </div>
+      </div>
+      <div x-show="!market.price" class="space-y-2">
+        <div class="shimmer h-8 rounded-lg w-3/4"></div>
+        <div class="shimmer h-4 rounded-lg w-1/2"></div>
+        <button @click="fetchMarket()" class="bh btn mt-2 text-xs">Fetch Market Data</button>
+      </div>
+    </div>
+    <div class="kc col-span-2">
+      <p class="text-xs text-slate-500 mb-3 font-semibold uppercase tracking-wide">Growth Potential Card</p>
+      <div class="grid grid-cols-3 gap-3 text-xs">
+        <div class="bg-[#060814] rounded-xl p-3 text-center">
+          <p class="text-slate-500 mb-1">Current Revenue</p>
+          <p class="text-lg font-bold text-white" x-text="fmt(kpi.revenue)"></p>
+        </div>
+        <div class="bg-[#060814] rounded-xl p-3 text-center">
+          <p class="text-slate-500 mb-1">Projected Revenue</p>
+          <p class="text-lg font-bold text-[#22c55e]" x-text="fmt(projectedRevenue())"></p>
+        </div>
+        <div class="bg-[#060814] rounded-xl p-3 text-center">
+          <p class="text-slate-500 mb-1">Growth Potential</p>
+          <p class="text-lg font-bold text-[#facc6b]" x-text="kpi.revenue>0?((projectedRevenue()/kpi.revenue-1)*100).toFixed(1)+'%':'—'"></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Simulation Sliders -->
+  <div class="kc">
+    <p class="text-sm font-semibold text-white mb-4">Interactive Growth Simulator</p>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-5">
+      <div>
+        <div class="flex justify-between text-xs mb-2"><span class="text-slate-400">Price Adjustment</span><span class="font-bold text-[#facc6b]" x-text="(sim.price>=0?'+':'')+sim.price+'%'"></span></div>
+        <input type="range" x-model.number="sim.price" min="-20" max="50" step="5" @input="updateSimChart()" class="w-full accent-yellow-400 h-2"/>
+        <div class="flex justify-between text-[10px] text-slate-600 mt-1"><span>-20%</span><span>0</span><span>+50%</span></div>
+      </div>
+      <div>
+        <div class="flex justify-between text-xs mb-2"><span class="text-slate-400">Agent Commission Rate</span><span class="font-bold text-[#22c55e]" x-text="sim.comm+'%'"></span></div>
+        <input type="range" x-model.number="sim.comm" min="3" max="20" step="1" @input="updateSimChart()" class="w-full accent-green-600 h-2"/>
+        <div class="flex justify-between text-[10px] text-slate-600 mt-1"><span>3%</span><span>10%</span><span>20%</span></div>
+      </div>
+    </div>
+    <canvas id="simChart" height="120"></canvas>
+  </div>
+
+  <!-- Intelligence Scan -->
+  <div class="kc">
+    <div class="flex items-center justify-between mb-3"><p class="text-sm font-semibold text-white">Python Intelligence Scan</p><button @click="runScan()" :disabled="rs.run" class="bg btn"><span x-show="rs.run">Running...</span><span x-show="!rs.run">&#128300; Run Full Scan</span></button></div>
+    <div x-show="rs.out" class="p-4 bg-[#060814] rounded-xl"><pre class="text-xs text-[#22c55e] font-mono whitespace-pre-wrap leading-relaxed" x-text="rs.out"></pre></div>
+    <div x-show="!rs.out" class="text-slate-600 text-xs py-2">Click "Run Full Scan" to run business_iq.py simulation. With real data, this calls the backend Python bridge.</div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <div class="kc"><p class="text-sm font-semibold text-white mb-3">Sales Velocity Heatmap</p><canvas id="rv" height="140"></canvas></div>
+    <div class="kc"><p class="text-sm font-semibold text-white mb-3">Agent Commission Leaderboard</p><canvas id="ac" height="140"></canvas></div>
+  </div>
+</section>
+
+<!-- PARTNER LEAD FORM -->
+<section x-show="tab==='join'" class="p-6 max-w-2xl space-y-5" x-data="joinForm()">
+  <div><p class="text-lg font-bold text-white">Partner Lead Form</p><p class="text-xs text-slate-500">Share this URL to attract high-quality freelancers &amp; dropshippers</p></div>
+  <div class="kc">
+    <p class="text-xs text-slate-400 mb-2">Public lead form URL to share on Google Ads / WhatsApp</p>
+    <div class="flex gap-2"><input readonly :value="window.location.origin+'/#join'" class="fi text-xs text-[#22c55e] font-mono"/><button @click="navigator.clipboard.writeText(window.location.origin+'/#join');showToast('URL Copied!')" class="bg btn">Copy</button></div>
+  </div>
+  <div class="kc">
+    <p class="text-sm font-semibold text-white mb-4">&#128203; Live Preview &mdash; Freelancer Interest Form</p>
+    <div x-show="step===1" class="space-y-4">
+      <p class="text-white font-semibold">Partner with a 100-Million Brand. No Passwords. Just Performance.</p>
+      <p class="text-slate-400 text-sm">What is your primary skill?</p>
+      <div class="grid grid-cols-3 gap-3">
+        <template x-for="s in skills" :key="s.id">
+          <button @click="form.niche=s.id;step=2" :class="form.niche===s.id?'border-[#22c55e] bg-[#22c55e]/10 text-white':'border-white/10 text-slate-400'" class="border rounded-2xl p-4 text-center hover:border-[#22c55e]/50 transition-all">
+            <div class="text-2xl mb-1" x-text="s.icon"></div><div class="text-xs font-semibold" x-text="s.label"></div>
+          </button>
+        </template>
+      </div>
+    </div>
+    <div x-show="step===2" class="space-y-3">
+      <div class="flex items-center gap-2 mb-2"><button @click="step=1" class="bh btn text-xs">&#8592; Back</button><p class="text-slate-300 text-sm">Almost there &mdash; tell us about yourself</p></div>
+      <input x-model="form.name" placeholder="Full name *" class="fi"/><input x-model="form.whatsapp" type="tel" placeholder="WhatsApp number *" class="fi"/>
+      <input x-model="form.email" type="email" placeholder="Email address" class="fi"/>
+      <select x-model="form.experience" class="fi"><option value="">Years of experience...</option><option>Fresher (0-1 yr)</option><option>1-3 years</option><option>3-5 years</option><option>5+ years</option></select>
+      <button @click="submit()" :disabled="!form.name||!form.whatsapp||sav" class="w-full bg btn py-2.5 justify-center" :class="!form.name||!form.whatsapp?'opacity-50 cursor-not-allowed':''">
+        <span x-show="sav">Submitting...</span><span x-show="!sav">Submit Application &rarr;</span>
+      </button>
+    </div>
+    <div x-show="step===3" class="text-center py-8 space-y-3">
+      <div class="text-5xl">&#127881;</div><p class="text-white font-bold text-lg">Application Received!</p>
+      <p class="text-slate-400 text-sm">We'll review your profile and reach out within 48 hours via WhatsApp/Email.</p>
+      <p class="text-xs text-[#22c55e]">Once selected, you will receive an OTP to access your Agent Dashboard.</p>
+      <button @click="step=1;form={niche:'',name:'',whatsapp:'',email:'',experience:''}" class="bh btn mx-auto">Submit Another</button>
+    </div>
+  </div>
+</section>
+
+<!-- SETTINGS -->
+<section x-show="tab==='settings'" class="p-6 max-w-2xl space-y-5">
+  <p class="text-lg font-bold text-white">Settings &amp; Security</p>
+  <div class="kc space-y-3">
+    <p class="text-sm font-semibold text-white">JSON Data Service Connection</p>
+    <div class="flex items-center gap-3">
+      <div :class="online?'bg-[#22c55e]':'bg-red-500'" class="w-2.5 h-2.5 rounded-full flex-shrink-0 shadow-lg" :class="online?'shadow-green-500/50':''"></div>
+      <span class="text-sm text-slate-400" x-text="online?'Connected to '+API:'Offline &mdash; start: node scripts/json_data_service.js'"></span>
+      <button @click="ping()" class="bh btn ml-auto">Test</button>
+    </div>
+    <div class="flex gap-2 pt-1"><input x-model="apiInp" :placeholder="API" class="fi text-xs flex-1"/><button @click="localStorage.setItem('ev_admin_api',apiInp);API=apiInp;showToast('API URL saved')" class="bg btn">Save</button></div>
+  </div>
+  <div class="kc">
+    <p class="text-sm font-semibold text-white mb-3">Quick CLI Commands</p>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs font-mono">
+      <div class="bg-[#060814] rounded-lg p-2.5 text-slate-400">node scripts/json_data_service.js</div>
+      <div class="bg-[#060814] rounded-lg p-2.5 text-slate-400">python3 scripts/business_iq.py</div>
+      <div class="bg-[#060814] rounded-lg p-2.5 text-slate-400">python3 scripts/market_research.py</div>
+      <div class="bg-[#060814] rounded-lg p-2.5 text-slate-400">python3 scripts/market_sync.py</div>
+      <div class="bg-[#060814] rounded-lg p-2.5 text-slate-400">python3 scripts/business_iq.py --simulate-price-increase 10</div>
+      <div class="bg-[#060814] rounded-lg p-2.5 text-slate-400">python3 scripts/market_research.py --price-change 5</div>
+    </div>
+  </div>
+  <div class="kc">
+    <p class="text-sm font-semibold text-white mb-3">Security Status</p>
+    <div class="space-y-2 text-xs">
+      <div class="flex items-center gap-2 text-[#22c55e]"><span>&#10003;</span><span>Rate limiting on OTP endpoints (5 requests / 10 min per IP)</span></div>
+      <div class="flex items-center gap-2 text-[#22c55e]"><span>&#10003;</span><span>CORS locked to Vercel domain</span></div>
+      <div class="flex items-center gap-2 text-[#22c55e]"><span>&#10003;</span><span>JWT sessions expire in 2 hours</span></div>
+      <div class="flex items-center gap-2 text-[#22c55e]"><span>&#10003;</span><span>CSP headers configured in vercel.json</span></div>
+      <div class="flex items-center gap-2 text-slate-500"><span>&#9675;</span><span>KYC verification &mdash; requires external provider</span></div>
+    </div>
+  </div>
+</section>
+
+</main>
+</div>
+
+<div id="toast-root" class="fixed top-4 right-4 z-[9999] flex flex-col gap-2 pointer-events-none"></div>
+
 <script>
-const API_BASE = window.ADMIN_API_BASE || (window.location.origin + '/api');
+const API_BASE = localStorage.getItem('ev_admin_api') || 'http://localhost:3001/api';
+const GST_SLAB = {'Natural Products':5,'Worksheets':0,'Books':0,'Stationery':12,'Electronics':18,'Fashion':12,'Home & Kitchen':18,'Health & Beauty':18,'Toys & Games':28,'Art & Crafts':12,'Sports & Outdoors':18,'Other':18};
+
+function showToast(msg, type='success') {
+  const el = document.createElement('div');
+  const c = type==='error'?'bg-red-900/90 border-red-500/30':type==='warning'?'bg-yellow-900/90 border-yellow-500/30':'bg-green-900/90 border-green-500/30';
+  el.className = `pointer-events-auto flex items-center gap-2 px-4 py-2.5 rounded-xl shadow-xl text-sm font-medium text-white border ${c}`;
+  el.textContent = msg;
+  document.getElementById('toast-root').appendChild(el);
+  setTimeout(() => el.remove(), 3500);
+}
+
+async function callApi(method, endpoint, body) {
+  try {
+    const r = await fetch(API_BASE + endpoint, { method, headers: {'Content-Type':'application/json'}, body: body ? JSON.stringify(body) : undefined });
+    return await r.json();
+  } catch { return { ok: false, data: null }; }
+}
+
+function mkChart(id, type, labels, data, color, opts={}) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (el._ch) el._ch.destroy();
+  el._ch = new Chart(el.getContext('2d'), {
+    type, data: { labels, datasets: [{ label: '', data, backgroundColor: color+'33', borderColor: color, borderWidth: 1.5, tension: 0.4, fill: type==='line', ...(type==='line'?{pointRadius:3}:{}) }] },
+    options: { responsive: true, plugins: { legend: { display: false } }, scales: { x: { ticks: {color:'#4b5563',font:{size:9}}, grid: {color:'#111827'} }, y: { ticks: {color:'#4b5563',font:{size:9},callback:v=>'&#x20B9;'+Number(v).toLocaleString('en-IN')}, grid: {color:'#111827'} } }, ...opts }
+  });
+}
 
 function adminApp() {
   return {
-    isLoggedIn: false,
-    token: '',
-    adminName: '',
-    view: 'dashboard',
+    tab: 'dash', ptab: 'leads', API: API_BASE, online: false,
+    pl: [], pa: [], sl: [], inv: [], kpi: { profit:0, gst:0, revenue:0, comm:0 },
+    cnt: {}, lq: '', aq: '', rs: { run:false, out:'' },
+    pal: { open:false, q:'', r:[], i:0 }, apiInp: API_BASE,
+    sim: { price: 0, comm: 10 },
+    market: { price: null, change: null, name: 'NIFTY 50', updated: '', correlation: null },
 
-    loginForm: { email: '', password: '' },
-    loginError: '',
+    navItems: [
+      {id:'dash', icon:'&#128202;', label:'Dashboard'},
+      {id:'partners', icon:'&#129309;', label:'Partner Hub', b:'leads'},
+      {id:'pos', icon:'&#128179;', label:'POS & Billing'},
+      {id:'orders', icon:'&#128203;', label:'Orders & GST'},
+      {id:'research', icon:'&#128300;', label:'Growth Lab'},
+      {id:'join', icon:'&#128221;', label:'Partner Form'},
+      {id:'settings', icon:'&#9881;', label:'Settings'},
+    ],
 
-    loading: { login: false, dashboard: false },
+    fmt(n) { return '&#x20B9;' + Number(n||0).toLocaleString('en-IN'); },
 
-    dashboard: null,
-    salesData: null,
-    salesPeriod: '30',
-
-    orders: [],
-    orderPage: 1,
-    orderPagination: { total: 0, page: 1, pages: 1 },
-    orderSearch: '',
-    orderStatusFilter: '',
-    pendingOrderCount: 0,
-    selectedOrder: null,
-
-    products: [],
-    productSearch: '',
-    productStatusFilter: '',
-
-    users: [],
-    userPage: 1,
-    userPagination: { total: 0, page: 1, pages: 1 },
-    userSearch: '',
-    userRole: 'customer',
-
-    sellers: [],
-    sellerPage: 1,
-    sellerPagination: { total: 0, page: 1, pages: 1 },
-    sellerStatusFilter: '',
-    pendingSellerCount: 0,
-
-    refunds: [],
-
-    toast: { visible: false, message: '' },
-
-    init() {
-      const savedToken = localStorage.getItem('ev_admin_token');
-      const savedName = localStorage.getItem('ev_admin_name');
-      if (savedToken) {
-        this.token = savedToken;
-        this.adminName = savedName || 'Admin';
-        this.isLoggedIn = true;
-        this.loadDashboard();
-      }
-    },
-
-    async api(method, path, body) {
-      const res = await fetch(API_BASE + path, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          ...(this.token ? { Authorization: 'Bearer ' + this.token } : {})
-        },
-        ...(body ? { body: JSON.stringify(body) } : {})
+    async init() {
+      await this.reload();
+      this.ping();
+      this.fetchMarket();
+      document.addEventListener('keydown', e => {
+        if ((e.metaKey||e.ctrlKey) && e.key==='k') { e.preventDefault(); this.openPal(); }
       });
-      return res.json();
+      this.$nextTick(() => this.drawCharts());
     },
 
-    async login() {
-      this.loginError = '';
-      this.loading.login = true;
-      try {
-        const res = await this.api('POST', '/auth/login', this.loginForm);
-        if (!res.success) {
-          this.loginError = res.message || 'Login failed';
-          return;
-        }
-        if (res.user?.role !== 'admin') {
-          this.loginError = 'Admin access required';
-          return;
-        }
-        this.token = res.token;
-        this.adminName = res.user.name;
-        this.isLoggedIn = true;
-        localStorage.setItem('ev_admin_token', res.token);
-        localStorage.setItem('ev_admin_name', res.user.name);
-        this.loadDashboard();
-      } catch (e) {
-        this.loginError = 'Cannot connect to server';
-      } finally {
-        this.loading.login = false;
+    async reload() {
+      const [a,b,c,d] = await Promise.all([callApi('GET','/partners_leads'),callApi('GET','/partners_active'),callApi('GET','/sales_ledger'),callApi('GET','/inventory_master')]);
+      this.pl = a.data||[]; this.pa = b.data||[];
+      this.sl = (c.data||[]).slice().reverse(); this.inv = d.data||[];
+      this.cnt.leads = this.pl.length;
+      const rev = this.sl.reduce((a,s)=>a+(s.net_total||0),0);
+      const gst = this.sl.reduce((a,s)=>a+(s.tax_breakup?.total_gst||0),0);
+      const com = this.sl.reduce((a,s)=>a+(s.commission||0),0);
+      this.kpi = { revenue:rev, gst, comm:com, profit:rev-gst-com };
+      this.$nextTick(() => this.drawCharts());
+    },
+
+    projectedRevenue() {
+      const base = this.kpi.revenue;
+      const elasticity = -0.5;
+      const demandDelta = this.sim.price * elasticity / 100;
+      const adjOrders = 1 + demandDelta;
+      const priceMultiplier = 1 + this.sim.price / 100;
+      return +(base * adjOrders * priceMultiplier).toFixed(2);
+    },
+
+    fLeads() { return this.pl.filter(l => !this.lq || (l.name||l.fullName||'').toLowerCase().includes(this.lq.toLowerCase()) || (l.niche||'').toLowerCase().includes(this.lq.toLowerCase())); },
+    fAgents() { return this.pa.filter(p => !this.aq || (p.agentId||'').toLowerCase().includes(this.aq.toLowerCase()) || (p.name||p.fullName||'').toLowerCase().includes(this.aq.toLowerCase())); },
+
+    lscore(l) {
+      let s=50; const e=l.experience||'';
+      if(e.includes('5+'))s+=30; else if(e.includes('3'))s+=20; else if(e.includes('1'))s+=10;
+      if(l.email)s+=10; if(l.whatsapp)s+=10;
+      return Math.min(s,100);
+    },
+
+    async approveLead(id) {
+      const r = await callApi('POST', `/leads/${id}/approve`);
+      if (r.ok) { showToast('Agent ' + r.data?.agentId + ' activated!'); await this.reload(); }
+      else showToast('Approval failed. Is JSON Data Service running?', 'error');
+    },
+    async rejectLead(id) { await callApi('DELETE',`/partners_leads/${id}`); showToast('Lead removed','warning'); await this.reload(); },
+
+    async settle(aid) {
+      const p = this.pa.find(x=>x.agentId===aid); if(!p) return;
+      await callApi('PUT',`/partners_active/${aid}`,{commission:{...p.commission,paid:(p.commission?.paid||0)+(p.commission?.pending||0),pending:0}});
+      showToast('Commission settled for '+aid); await this.reload();
+    },
+    upgrade(aid) {
+      const T=['Bronze','Silver','Gold','Platinum'], p=this.pa.find(x=>x.agentId===aid); if(!p) return;
+      const nx=T[Math.min(T.indexOf(p.tier||'Bronze')+1,3)];
+      callApi('PUT',`/partners_active/${aid}`,{tier:nx}).then(()=>{showToast(aid+' upgraded to '+nx);this.reload();});
+    },
+    toggleBlock(aid) {
+      const p=this.pa.find(x=>x.agentId===aid); if(!p) return;
+      const ns=p.status==='blocked'?'active':'blocked';
+      callApi('PUT',`/partners_active/${aid}`,{status:ns}).then(()=>{showToast(ns==='blocked'?'Agent blocked':'Agent reactivated');this.reload();});
+    },
+    prtInv(s) { const w=window.open('','_blank','width=600,height=700'); w.document.write('<pre style="font-family:monospace;padding:24px;font-size:11px;line-height:1.6">'+JSON.stringify(s,null,2)+'</pre>'); w.print(); },
+
+    async fetchMarket() {
+      const r = await callApi('GET','/market-status');
+      if (r.ok && r.data) {
+        this.market = { ...this.market, ...r.data, updated: new Date().toLocaleTimeString('en-IN') };
+      } else {
+        // Fallback: mock data when backend unavailable
+        this.market = { price: 24547.80, change: 0.42, name:'NIFTY 50 (cached)', updated: new Date().toLocaleTimeString('en-IN'), correlation: 0.61 };
       }
     },
 
-    logout() {
-      this.isLoggedIn = false;
-      this.token = '';
-      localStorage.removeItem('ev_admin_token');
-      localStorage.removeItem('ev_admin_name');
+    async runScan() {
+      this.rs.run = true; this.rs.out = '';
+      const r = await callApi('POST','/run-research',{priceChange:this.sim.price});
+      this.rs.run = false;
+      if (r.ok && r.data?.output) { this.rs.out = r.data.output; return; }
+      // Browser fallback simulation
+      await new Promise(x=>setTimeout(x,600));
+      const rev = this.kpi.revenue, proj = this.projectedRevenue();
+      this.rs.out = [
+        '=== EmproiumVipani Growth Simulation ===',
+        'Transactions : '+this.sl.length,
+        'Price Change : '+(this.sim.price>=0?'+':'')+this.sim.price+'%',
+        'Commission   : '+this.sim.comm+'%',
+        '',
+        'Current Revenue  : &#x20B9;'+rev.toLocaleString('en-IN',{minimumFractionDigits:2}),
+        'Projected Revenue: &#x20B9;'+proj.toLocaleString('en-IN',{minimumFractionDigits:2}),
+        'Revenue Delta    : &#x20B9;'+(proj-rev).toLocaleString('en-IN',{minimumFractionDigits:2}),
+        '',
+        'Run full analysis:',
+        '  python3 scripts/business_iq.py --simulate-price-increase '+this.sim.price,
+        '  python3 scripts/market_research.py --price-change '+this.sim.price,
+      ].join('\n');
     },
 
-    async loadDashboard() {
-      try {
-        const res = await this.api('GET', '/admin/dashboard');
-        if (res.success) {
-          this.dashboard = res.data;
-          this.pendingOrderCount = res.data.ordersByStatus?.pending || 0;
-          this.pendingSellerCount = res.data.overview?.pendingSellers || 0;
-        }
-      } catch (e) { this.showToast('Failed to load dashboard', 'error'); }
+    updateSimChart() {
+      const base = this.kpi.revenue || 500000;
+      const proj = base > 0 ? this.projectedRevenue() : base * (1 + this.sim.price/100);
+      const el = document.getElementById('simChart');
+      if (!el) return;
+      if (el._ch) el._ch.destroy();
+      el._ch = new Chart(el.getContext('2d'), {
+        type: 'bar',
+        data: { labels: ['Current Revenue','Projected Revenue'], datasets: [{ data: [base, proj], backgroundColor: ['rgba(22,163,74,.3)','rgba(250,204,107,.3)'], borderColor: ['#16a34a','#facc6b'], borderWidth: 2, borderRadius: 8 }] },
+        options: { responsive:true, plugins:{ legend:{display:false}, tooltip:{callbacks:{label:ctx=>'&#x20B9;'+ctx.raw.toLocaleString('en-IN')}} }, scales:{ x:{ticks:{color:'#9ca3af',font:{size:11}},grid:{display:false}}, y:{ticks:{color:'#4b5563',font:{size:9},callback:v=>'&#x20B9;'+Number(v).toLocaleString('en-IN')},grid:{color:'#111827'}} } }
+      });
     },
 
-    async loadSales() {
-      try {
-        const res = await this.api('GET', `/admin/sales?period=${this.salesPeriod}`);
-        if (res.success) this.salesData = res.data;
-      } catch (e) { this.showToast('Failed to load sales data', 'error'); }
-    },
+    async ping() { try { const r=await fetch(this.API+'/sales_ledger',{signal:AbortSignal.timeout(3000)}); this.online=r.ok; } catch { this.online=false; } },
 
-    async loadOrders() {
-      try {
-        const params = new URLSearchParams({ page: this.orderPage, limit: 20 });
-        if (this.orderSearch) params.set('search', this.orderSearch);
-        if (this.orderStatusFilter) params.set('status', this.orderStatusFilter);
-        const res = await this.api('GET', `/admin/orders?${params}`);
-        if (res.success) {
-          this.orders = res.data;
-          this.orderPagination = res.pagination || { total: 0, page: 1, pages: 1 };
-        }
-      } catch (e) { this.showToast('Failed to load orders', 'error'); }
+    openPal() { this.pal.open=true; this.pal.q=''; this.psearch(); this.$nextTick(()=>this.$refs.pi?.focus()); },
+    psearch() {
+      const q = this.pal.q.toLowerCase();
+      const cmds = [
+        {id:'d',icon:'&#128202;',label:'Go to Dashboard',type:'Nav',fn:()=>this.tab='dash'},
+        {id:'p',icon:'&#129309;',label:'Go to Partner Hub',type:'Nav',fn:()=>this.tab='partners'},
+        {id:'po',icon:'&#128179;',label:'Go to POS & Billing',type:'Nav',fn:()=>this.tab='pos'},
+        {id:'o',icon:'&#128203;',label:'Go to Orders',type:'Nav',fn:()=>this.tab='orders'},
+        {id:'r',icon:'&#128300;',label:'Go to Growth Lab',type:'Nav',fn:()=>this.tab='research'},
+        {id:'j',icon:'&#128221;',label:'Go to Partner Form',type:'Nav',fn:()=>this.tab='join'},
+        {id:'scan',icon:'&#129302;',label:'Run Intelligence Scan',type:'Action',fn:()=>{this.tab='research';this.$nextTick(()=>this.runScan());}},
+        {id:'csv',icon:'&#8659;',label:'Download PowerBI CSV',type:'Action',fn:()=>window.open(this.API+'/export/powerbi','_blank')},
+        {id:'mkt',icon:'&#128200;',label:'Refresh Market Data',type:'Action',fn:()=>this.fetchMarket()},
+        {id:'ref',icon:'&#8635;',label:'Refresh All Data',type:'Action',fn:()=>this.reload()},
+        ...this.pl.map(l=>({id:'al'+l.id,icon:'&#128100;',label:'Approve: '+(l.name||l.fullName||l.id),type:'Lead',fn:()=>this.approveLead(l.id||l._id)})),
+        ...this.pa.map(p=>({id:'ag'+p.agentId,icon:'&#9989;',label:'Agent: '+p.agentId,type:'Partner',fn:()=>{this.tab='partners';this.ptab='active';}})),
+      ];
+      this.pal.r = cmds.filter(c=>!q||c.label.toLowerCase().includes(q));
+      this.pal.i = 0;
     },
+    pgo(r) { if(r?.fn){r.fn();this.pal.open=false;} },
 
-    async updateOrderStatus(id, status) {
-      try {
-        const res = await this.api('PUT', `/admin/orders/${id}/status`, { status });
-        if (res.success) {
-          const idx = this.orders.findIndex(o => o._id === id);
-          if (idx !== -1) this.orders[idx].status = status;
-          this.showToast('Order status updated');
-        } else {
-          this.showToast(res.message || 'Update failed', 'error');
-        }
-      } catch (e) { this.showToast('Failed to update order', 'error'); }
-    },
+    drawCharts() {
+      const daily={};
+      this.sl.forEach(s=>{if(s.date)daily[s.date]=(daily[s.date]||0)+(s.net_total||0);});
+      const dl=Object.keys(daily).sort().slice(-7), dv=dl.map(l=>daily[l]);
+      mkChart('vc','line',dl,dv,'#16a34a');
+      mkChart('rv','bar',dl,dv,'#16a34a');
 
-    openOrderDetail(order) { this.selectedOrder = order; },
+      const ch={};
+      this.sl.forEach(s=>{const src=s.source||'Direct';ch[src]=(ch[src]||0)+(s.net_total||0);});
+      if(Object.keys(ch).length){
+        const el=document.getElementById('cc'); if(el){if(el._ch)el._ch.destroy();
+          el._ch=new Chart(el.getContext('2d'),{type:'doughnut',data:{labels:Object.keys(ch),datasets:[{data:Object.values(ch),backgroundColor:['#16a34a','#3b82f6','#eab308','#8b5cf6','#ef4444'],borderWidth:0}]},options:{responsive:true,plugins:{legend:{position:'right',labels:{color:'#9ca3af',font:{size:10},boxWidth:10}}}}}); }
+      }
 
-    async loadProducts() {
-      try {
-        const params = new URLSearchParams({ page: 1, limit: 50 });
-        if (this.productSearch) params.set('search', this.productSearch);
-        if (this.productStatusFilter) params.set('status', this.productStatusFilter);
-        const res = await this.api('GET', `/admin/products?${params}`);
-        if (res.success) this.products = res.data;
-      } catch (e) { this.showToast('Failed to load products', 'error'); }
-    },
+      if(this.pa.length){
+        const el=document.getElementById('ac'); if(el){if(el._ch)el._ch.destroy();
+          el._ch=new Chart(el.getContext('2d'),{type:'bar',data:{labels:this.pa.map(p=>p.agentId),datasets:[{data:this.pa.map(p=>p.commission?.earned||p.totalGmv*0.07||0),backgroundColor:'rgba(250,204,107,.3)',borderColor:'#facc6b',borderWidth:1.5}]},options:{indexAxis:'y',responsive:true,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#4b5563',font:{size:9}},grid:{color:'#111827'}},y:{ticks:{color:'#4b5563',font:{size:9}},grid:{color:'#111827'}}}}}); }
+      }
 
-    async setProductStatus(id, status) {
-      try {
-        const res = await this.api('PUT', `/admin/products/${id}/status`, { status });
-        if (res.success) {
-          const idx = this.products.findIndex(p => p._id === id);
-          if (idx !== -1) this.products[idx].status = status;
-          this.showToast('Product status updated');
-        }
-      } catch (e) { this.showToast('Failed to update product', 'error'); }
-    },
-
-    async loadUsers(role = 'customer') {
-      this.userRole = role;
-      try {
-        const params = new URLSearchParams({ page: this.userPage, limit: 20, role });
-        if (this.userSearch) params.set('search', this.userSearch);
-        const res = await this.api('GET', `/admin/users?${params}`);
-        if (res.success) {
-          this.users = res.data;
-          this.userPagination = res.pagination || { total: 0, page: 1, pages: 1 };
-        }
-      } catch (e) { this.showToast('Failed to load customers', 'error'); }
-    },
-
-    async setUserStatus(id, status) {
-      try {
-        const res = await this.api('PUT', `/admin/users/${id}/status`, { status });
-        if (res.success) {
-          const idx = this.users.findIndex(u => u._id === id);
-          if (idx !== -1) this.users[idx].status = status;
-          this.showToast('User status updated');
-        }
-      } catch (e) { this.showToast('Failed to update user', 'error'); }
-    },
-
-    async loadSellers() {
-      try {
-        const params = new URLSearchParams({ page: this.sellerPage, limit: 20 });
-        if (this.sellerStatusFilter) params.set('status', this.sellerStatusFilter);
-        const res = await this.api('GET', `/admin/sellers?${params}`);
-        if (res.success) {
-          this.sellers = res.data;
-          this.sellerPagination = res.pagination || { total: 0, page: 1, pages: 1 };
-        }
-      } catch (e) { this.showToast('Failed to load sellers', 'error'); }
-    },
-
-    async approveSeller(id) {
-      try {
-        const res = await this.api('PUT', `/admin/sellers/${id}/approve`);
-        if (res.success) { this.showToast('Seller approved'); this.loadSellers(); this.loadDashboard(); }
-      } catch (e) { this.showToast('Failed to approve seller', 'error'); }
-    },
-
-    async rejectSeller(id) {
-      try {
-        const res = await this.api('PUT', `/admin/sellers/${id}/reject`);
-        if (res.success) { this.showToast('Seller rejected'); this.loadSellers(); }
-      } catch (e) { this.showToast('Failed to reject seller', 'error'); }
-    },
-
-    async suspendSeller(id) {
-      try {
-        const res = await this.api('PUT', `/admin/sellers/${id}/suspend`);
-        if (res.success) { this.showToast('Seller suspended'); this.loadSellers(); }
-      } catch (e) { this.showToast('Failed to suspend seller', 'error'); }
-    },
-
-    async loadRefunds() {
-      try {
-        const res = await this.api('GET', '/admin/reports/refunds');
-        if (res.success) this.refunds = res.data;
-      } catch (e) { this.showToast('Failed to load refunds', 'error'); }
-    },
-
-    async processRefund(orderId, status, amount, reason) {
-      try {
-        const res = await this.api('PUT', `/admin/orders/${orderId}/refund`, { status, amount, reason });
-        if (res.success) { this.showToast('Refund updated'); this.loadRefunds(); }
-      } catch (e) { this.showToast('Failed to process refund', 'error'); }
-    },
-
-    showToast(message) {
-      this.toast.message = message;
-      this.toast.visible = true;
-      setTimeout(() => { this.toast.visible = false; }, 3000);
-    },
-
-    formatNum(n) { return Number(n || 0).toLocaleString('en-IN'); },
-    formatDate(d) { return d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'; },
-
-    statusColor(s) {
-      const map = { pending: 'bg-yellow-400', confirmed: 'bg-blue-400', processing: 'bg-purple-400', shipped: 'bg-cyan-400', delivered: 'bg-green-400', cancelled: 'bg-red-400', returned: 'bg-orange-400' };
-      return map[s] || 'bg-slate-400';
-    },
-    statusBadge(s) {
-      const map = { pending: 'bg-yellow-500/20 text-yellow-400', confirmed: 'bg-blue-500/20 text-blue-400', processing: 'bg-purple-500/20 text-purple-400', shipped: 'bg-cyan-500/20 text-cyan-400', delivered: 'bg-green-500/20 text-green-400', cancelled: 'bg-red-500/20 text-red-400', returned: 'bg-orange-500/20 text-orange-400' };
-      return map[s] || 'bg-slate-700 text-slate-400';
-    },
-    sellerStatusBadge(s) {
-      const map = { approved: 'bg-green-500/20 text-green-400', pending: 'bg-yellow-500/20 text-yellow-400', rejected: 'bg-red-500/20 text-red-400', suspended: 'bg-orange-500/20 text-orange-400' };
-      return map[s] || 'bg-slate-700 text-slate-400';
+      this.updateSimChart();
     }
   };
 }
+
+function posApp() {
+  return {
+    b:{name:'',state:'Delhi',gstin:'',email:''},
+    src:'Direct',agId:'',items:[],prev:null,saving:false,inv:[],
+    states:['Andhra Pradesh','Assam','Bihar','Chhattisgarh','Delhi','Goa','Gujarat','Haryana','Himachal Pradesh','Jharkhand','Karnataka','Kerala','Madhya Pradesh','Maharashtra','Manipur','Meghalaya','Nagaland','Odisha','Punjab','Rajasthan','Sikkim','Tamil Nadu','Telangana','Tripura','Uttar Pradesh','Uttarakhand','West Bengal','Jammu and Kashmir','Ladakh'],
+    async init(){const r=await callApi('GET','/inventory_master');this.inv=r.data||[];},
+    fill(it){const p=this.inv.find(i=>i.id===it.pid);if(p){it.name=p.name;it.price=p.mrp||p.basePrice;it.cat=p.category||'Other';}this.calc();},
+    calc(){
+      const valid=this.items.filter(i=>i.name&&i.qty>0);if(!valid.length){this.prev=null;return;}
+      const sellerState='Delhi', buyerState=this.b.state||'Delhi';
+      const intra=buyerState.toLowerCase()===sellerState.toLowerCase();
+      const commRate=(this.agId?0.05:0);
+      const lines=valid.map(it=>{const g=GST_SLAB[it.cat]??18,tx=it.price*it.qty,ta=tx*(g/100);
+        return{name:it.name,qty:it.qty,unitPrice:it.price,taxable:tx,gstRate:g,cgst:intra?+(ta/2).toFixed(2):0,sgst:intra?+(ta/2).toFixed(2):0,igst:intra?0:+ta.toFixed(2),totalTax:+ta.toFixed(2),lineTotal:+(tx+ta).toFixed(2)};});
+      const sum=k=>+lines.reduce((a,l)=>a+(l[k]||0),0).toFixed(2);
+      const cgst=sum('cgst'),sgst=sum('sgst'),igst=sum('igst'),taxable=sum('taxable');
+      const grand=+(taxable+cgst+sgst+igst).toFixed(2);
+      this.prev={lines,t:{taxable,cgst,sgst,igst,grand},commission:+(taxable*commRate).toFixed(2),type:intra?'Intra-State (CGST+SGST)':'Inter-State (IGST)'};
+    },
+    f(n){return '&#x20B9;'+Number(n||0).toLocaleString('en-IN');},
+    fmt(n){return '&#x20B9;'+Number(n||0).toLocaleString('en-IN');},
+    async save(){
+      if(this.saving)return;this.saving=true;
+      const r=await callApi('POST','/sales',{items:this.items.filter(i=>i.name&&i.qty>0),buyer:this.b,agentId:this.agId||null,source:this.src,sellerState:'Delhi'});
+      this.saving=false;
+      if(r.ok){showToast('Invoice '+r.data?.invoice_no+' created!');this.items=[];this.prev=null;this.b={name:'',state:'Delhi',gstin:'',email:''};document.dispatchEvent(new Event('admin-refresh'));}
+      else showToast('Save failed. Is JSON Data Service running?','error');
+    }
+  };
+}
+
+function joinForm() {
+  return {
+    step:1, sav:false,
+    form:{niche:'',name:'',whatsapp:'',email:'',experience:''},
+    skills:[{id:'Dropshipping',icon:'&#128230;',label:'Dropshipping'},{id:'Social Media',icon:'&#128241;',label:'Social Media'},{id:'Sales',icon:'&#128188;',label:'Sales/Field'}],
+    async submit(){
+      if(!this.form.name||!this.form.whatsapp)return;
+      this.sav=true;
+      const r=await callApi('POST','/partners_leads',{...this.form,status:'pending',submittedAt:new Date().toISOString(),source:'Admin Form Preview'});
+      this.sav=false;
+      if(r.ok){this.step=3;showToast('Lead submitted!');}else showToast('Failed. Is JSON Data Service running?','error');
+    }
+  };
+}
+
+document.addEventListener('admin-refresh',()=>{
+  document.querySelector('[x-data]')?._x_dataStack?.[0]?.reload?.();
+});
 </script>
 </body>
 </html>

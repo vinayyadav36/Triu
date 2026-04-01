@@ -67,10 +67,11 @@ class AppStore {
             filters: {
                 category: 'all',
                 search: '',
-                sortBy: 'relevance'
+                sortBy: 'relevance',
+                condition: 'all'  // New/Refurbished/Used
             },
             selectedProduct: null,
-            
+
             // UI State
             modals: {
                 seller: false,
@@ -78,19 +79,48 @@ class AppStore {
                 cart: false,
                 checkout: false
             },
-            
+
             // Loading States
             loading: {
                 products: false,
                 checkout: false,
                 order: false
             },
-            
+
             // Order Confirmation
             lastOrder: null,
-            
+
             // Mobile
-            mobileMenuOpen: false
+            mobileMenuOpen: false,
+
+            // Wishlist (persisted)
+            wishlist: [],
+
+            // Escrow payment tracker
+            escrow: { status: null, orderId: null, history: [] },
+
+            // Real-time order status (WebSocket driven)
+            realtimeOrderStatus: null,
+
+            // SPA Routing
+            currentRoute: '/',
+            currentRouteParams: {},
+            routeLoading: false,
+
+            // Geo-location service
+            location: { lat: null, lng: null, city: null, radius: 50 },
+
+            // Auction listings
+            auctions: [],
+
+            // Agent / Logistics
+            agent: { deliveryQueue: [], currentLocation: null, isOnline: false },
+
+            // Partner / Dropshipper
+            partner: { agentId: null, leads: [], commissions: { pending: 0, earned: 0, paid: 0 }, tier: 'Bronze' },
+
+            // Prefetch cache (productId → data)
+            _prefetchCache: {},
         };
         
         this.listeners = [];
@@ -195,33 +225,32 @@ class AppStore {
     
     // ========== Storage Management ==========
     loadFromStorage() {
-        const saved = localStorage.getItem('emproium_cart');
-        const userSaved = localStorage.getItem('emproium_user');
-        const sessionExpiry = localStorage.getItem('emproium_session_expires_at');
-        
-        if (saved) {
-            try {
-                this.state.cart = JSON.parse(saved);
-            } catch (e) {
-                console.error('Cart load error:', e);
-            }
-        }
-        
-        if (userSaved) {
-            try {
-                this.state.user = JSON.parse(userSaved);
-                this.state.isLoggedIn = true;
-            } catch (e) {
-                console.error('User load error:', e);
-            }
-        }
+        const saved        = localStorage.getItem('emproium_cart');
+        const userSaved    = localStorage.getItem('emproium_user');
+        const sessionExpiry= localStorage.getItem('emproium_session_expires_at');
+        const filtersSaved = localStorage.getItem('emproium_filters');
+        const wishlistSaved= localStorage.getItem('emproium_wishlist');
 
+        if (saved) {
+            try { this.state.cart = JSON.parse(saved); } catch (e) { console.error('Cart load error:', e); }
+        }
+        if (userSaved) {
+            try { this.state.user = JSON.parse(userSaved); this.state.isLoggedIn = true; } catch (e) { console.error('User load error:', e); }
+        }
+        if (filtersSaved) {
+            try {
+                const f = JSON.parse(filtersSaved);
+                this.state.filters = { ...this.state.filters, ...f };
+            } catch (e) { /* ignore */ }
+        }
+        if (wishlistSaved) {
+            try { this.state.wishlist = JSON.parse(wishlistSaved); } catch (e) { /* ignore */ }
+        }
         if (sessionExpiry) {
             const expiry = Number(sessionExpiry);
             if (!Number.isNaN(expiry) && expiry > Date.now()) {
                 this.state.sessionExpiresAt = expiry;
             } else {
-                // Expired stored session
                 this.logout();
             }
         }
@@ -229,6 +258,12 @@ class AppStore {
     
     saveToStorage() {
         localStorage.setItem('emproium_cart', JSON.stringify(this.state.cart));
+        localStorage.setItem('emproium_wishlist', JSON.stringify(this.state.wishlist));
+        localStorage.setItem('emproium_filters', JSON.stringify({
+            category:  this.state.filters.category,
+            sortBy:    this.state.filters.sortBy,
+            condition: this.state.filters.condition,
+        }));
         if (this.state.user) {
             localStorage.setItem('emproium_user', JSON.stringify(this.state.user));
         }
@@ -384,29 +419,50 @@ class AppStore {
         this.listeners.forEach(cb => cb(this.state));
     }
     
-    // ========== Cart Operations ==========
+    // ========== Cart Operations (Optimistic UI) ==========
     addToCart(productId) {
         const product = this.state.products.find(p => p.id === productId);
         if (!product) return;
-        
+
+        // 1. Snapshot for potential rollback
+        const snapshot = JSON.stringify(this.state.cart);
+
+        // 2. Immediate (optimistic) update
         const existing = this.state.cart.find(item => item.id === productId);
-        
-        if (existing) {
-            existing.quantity += 1;
-        } else {
-            this.state.cart.push({
-                ...product,
-                quantity: 1
+        if (existing) { existing.quantity += 1; }
+        else           { this.state.cart.push({ ...product, quantity: 1 }); }
+
+        this.saveToStorage();
+        this.notify();
+        this.showToast('✅ Added to cart!', 'success');
+
+        // 3. Background API sync
+        const api = window.api;
+        if (api && typeof api.addToCart === 'function') {
+            api.addToCart(productId, 1).catch(() => {
+                try { this.state.cart = JSON.parse(snapshot); } catch {}
+                this.saveToStorage();
+                this.notify();
+                this.showToast('Cart sync failed — change reverted.', 'error');
             });
         }
-        
-        this.updateCart(this.state.cart);
-        this.showToast('✅ Added to cart!', 'success');
     }
-    
+
     removeFromCart(productId) {
+        // Optimistic: remove immediately, sync in background
+        const snapshot = JSON.stringify(this.state.cart);
         this.state.cart = this.state.cart.filter(item => item.id !== productId);
-        this.updateCart(this.state.cart);
+        this.saveToStorage();
+        this.notify();
+
+        const api = window.api;
+        if (api && typeof api.removeFromCart === 'function') {
+            api.removeFromCart(productId).catch(() => {
+                try { this.state.cart = JSON.parse(snapshot); } catch {}
+                this.saveToStorage();
+                this.notify();
+            });
+        }
     }
     
     updateQuantity(productId, change) {
@@ -430,22 +486,23 @@ class AppStore {
     // ========== Product Filtering ==========
     filterProducts() {
         let filtered = [...this.state.products];
-        
-        // Category filter
+
         if (this.state.filters.category !== 'all') {
             filtered = filtered.filter(p => p.category === this.state.filters.category);
         }
-        
-        // Search filter
+
         if (this.state.filters.search) {
-            const search = this.state.filters.search.toLowerCase();
-            filtered = filtered.filter(p => 
-                p.name.toLowerCase().includes(search) ||
-                p.description.toLowerCase().includes(search)
+            const s = this.state.filters.search.toLowerCase();
+            filtered = filtered.filter(p =>
+                p.name.toLowerCase().includes(s) || (p.description || '').toLowerCase().includes(s)
             );
         }
-        
-        // Sort
+
+        // Condition filter (New / Refurbished / Used)
+        if (this.state.filters.condition !== 'all') {
+            filtered = filtered.filter(p => (p.condition || 'new') === this.state.filters.condition);
+        }
+
         switch (this.state.filters.sortBy) {
             case 'price-low':
                 filtered.sort((a, b) => a.price - b.price);
@@ -464,6 +521,14 @@ class AppStore {
         }
         
         this.state.filteredProducts = filtered;
+
+        // SEO: noindex thin/empty filtered pages
+        if (window.MetaTags) {
+            const isThin = filtered.length === 0 &&
+                (this.state.filters.search || this.state.filters.category !== 'all');
+            window.MetaTags.update({ noindex: isThin });
+        }
+
         this.notify();
     }
     
@@ -511,9 +576,12 @@ class AppStore {
 
     // ========== Product Detail ==========
     async setSelectedProductById(productId) {
-        let product = this.state.products.find(p => p.id === productId);
+        // Check prefetch cache first (populated by hover)
+        const cached = this.state._prefetchCache[productId];
+        let product = cached && typeof cached === 'object' && cached.id
+            ? cached
+            : this.state.products.find(p => p.id === productId);
 
-        // If not in current list (or missing fields), try fetching from API
         if (!product && window.api && typeof window.api.getProduct === 'function') {
             try {
                 const result = await window.api.getProduct(productId);
@@ -526,12 +594,47 @@ class AppStore {
 
         if (product) {
             this.state.selectedProduct = product;
+
+            // Inject JSON-LD Product schema for SEO
+            if (window.StructuredData) {
+                const seller = this.getSeller(product.sellerId);
+                window.StructuredData.injectProduct(product, seller);
+            }
+
+            // Update dynamic meta tags for social sharing + SEO
+            if (window.MetaTags) {
+                window.MetaTags.update({
+                    title:       product.name,
+                    description: product.description
+                        || `Buy ${product.name} – ₹${product.price} | EmproiumVipani`,
+                    image: product.image && product.image.startsWith('http') ? product.image : undefined,
+                    url:   `${window.location.origin}/#product-${product.id}`,
+                });
+            }
+
+            // Dynamic remarketing data layer (Google Ads)
+            window.dataLayer = window.dataLayer || [];
+            window.dataLayer.push({
+                event: 'view_item',
+                ecommerce: {
+                    items: [{
+                        item_id:       String(product.id),
+                        item_name:     product.name,
+                        item_category: product.category,
+                        price:         product.price,
+                        currency:      'INR',
+                    }]
+                }
+            });
+
             this.notify();
         }
     }
 
     clearSelectedProduct() {
         this.state.selectedProduct = null;
+        if (window.MetaTags)       window.MetaTags.reset();
+        if (window.StructuredData) window.StructuredData.removeProduct();
         this.notify();
     }
     
@@ -835,6 +938,8 @@ class AppStore {
         this.state.sessionExpiresAt = null;
         this.state.auth.sessionWarningShown = false;
         this.state.auth.showSessionExtend = false;
+        // Close WebSocket on logout
+        if (this._ws) { try { this._ws.close(); } catch {} this._ws = null; }
         localStorage.removeItem('emproium_user');
         if (window.api && typeof window.api.logout === 'function') {
             window.api.logout();
@@ -950,12 +1055,291 @@ class AppStore {
         this.state.mobileMenuOpen = false;
         this.notify();
     }
+
+    // ── Condition Filter ────────────────────────────────────────
+    setConditionFilter(condition) {
+        this.state.filters.condition = condition;
+        this.filterProducts();
+        this.saveToStorage();
+    }
+
+    // ── Wishlist (Optimistic) ───────────────────────────────────
+    toggleWishlist(productId) {
+        const idx      = this.state.wishlist.indexOf(productId);
+        const snapshot = [...this.state.wishlist];
+        if (idx === -1) {
+            this.state.wishlist.push(productId);
+            this.showToast('💛 Added to wishlist', 'success');
+        } else {
+            this.state.wishlist.splice(idx, 1);
+        }
+        this.saveToStorage();
+        this.notify();
+
+        const api = window.api;
+        if (api && typeof api.toggleWishlist === 'function') {
+            api.toggleWishlist(productId).catch(() => {
+                this.state.wishlist = snapshot;
+                this.saveToStorage();
+                this.notify();
+                this.showToast('Wishlist sync failed.', 'error');
+            });
+        }
+    }
+
+    isInWishlist(productId) {
+        return this.state.wishlist.includes(productId);
+    }
+
+    // ── Location Service ────────────────────────────────────────
+    async detectLocation() {
+        return new Promise((resolve, reject) => {
+            if (!navigator.geolocation) { reject(new Error('Geolocation not supported')); return; }
+            navigator.geolocation.getCurrentPosition(
+                pos => {
+                    this.state.location.lat = pos.coords.latitude;
+                    this.state.location.lng = pos.coords.longitude;
+                    this.notify();
+                    resolve(this.state.location);
+                },
+                err => reject(err),
+                { timeout: 10000, maximumAge: 300000 }
+            );
+        });
+    }
+
+    async loadNearbyProducts() {
+        const { lat, lng, radius } = this.state.location;
+        if (!lat || !lng) return;
+        const api = window.api;
+        if (!api || typeof api.getProductsByLocation !== 'function') return;
+        try {
+            const res = await api.getProductsByLocation(lat, lng, radius);
+            const products = res?.data || [];
+            if (products.length) { this.state.filteredProducts = products; this.notify(); }
+        } catch (e) { console.warn('⚠️ Nearby products:', e.message); }
+    }
+
+    // ── Auctions ────────────────────────────────────────────────
+    async loadAuctions(params = {}) {
+        const api = window.api;
+        if (!api || typeof api.getAuctions !== 'function') return;
+        try {
+            const res = await api.getAuctions(params);
+            this.state.auctions = res?.data || [];
+            this.notify();
+        } catch (e) { console.warn('⚠️ Auctions fetch:', e.message); }
+    }
+
+    async placeBid(auctionId, amount) {
+        const api = window.api;
+        if (!api || typeof api.placeBid !== 'function') throw new Error('Auction service unavailable');
+        const result = await api.placeBid(auctionId, amount);
+        const auction = this.state.auctions.find(a => a._id === auctionId || a.id === auctionId);
+        if (auction) { auction.currentBid = amount; auction.bidCount = (auction.bidCount || 0) + 1; this.notify(); }
+        this.showToast('✅ Bid placed!', 'success');
+        return result;
+    }
+
+    // ── WebSocket (Real-time order status) ──────────────────────
+    initWebSocket() {
+        const base = (typeof import_meta_env_VITE_API_URL !== 'undefined' ? import_meta_env_VITE_API_URL : '')
+            .replace(/^http/, 'ws').replace('/api', '') + '/ws';
+        if (!base.startsWith('ws')) return;
+        try {
+            if (this._ws && this._ws.readyState < 2) return;
+            this._ws = new WebSocket(base);
+            this._ws.addEventListener('message', ev => {
+                try {
+                    const d = JSON.parse(ev.data);
+                    if (d.type === 'ORDER_STATUS_UPDATE') {
+                        this.state.realtimeOrderStatus = d;
+                        const o = this.state.account.orders.find(x => x._id === d.orderId || x.orderId === d.orderId);
+                        if (o) o.status = d.status;
+                        this.notify();
+                    }
+                    if (d.type === 'ESCROW_UPDATE') {
+                        this.state.escrow = { ...this.state.escrow, ...d.escrow };
+                        this.notify();
+                    }
+                } catch {}
+            });
+            this._ws.addEventListener('close', () => {
+                if (this.state.isLoggedIn) setTimeout(() => this.initWebSocket(), 5000);
+            });
+        } catch (e) { console.warn('⚠️ WebSocket unavailable:', e.message); }
+    }
+
+    // ── Push Notifications ──────────────────────────────────────
+    async requestPushPermission() {
+        if (!('Notification' in window) || !navigator.serviceWorker) return;
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+            this.showToast('🔔 Push notifications enabled.', 'success');
+        } else {
+            this.showToast('Push notifications blocked in browser settings.', 'warning');
+        }
+    }
+
+    // ── Agent / Delivery ────────────────────────────────────────
+    async loadDeliveryQueue() {
+        if (this.state.user?.role !== 'agent') return;
+        const api = window.api;
+        if (!api || typeof api.getDeliveryQueue !== 'function') return;
+        const agentId = this.state.user._id || this.state.user.id;
+        try {
+            const res = await api.getDeliveryQueue(agentId);
+            this.state.agent.deliveryQueue = res?.data || [];
+            this.notify();
+        } catch (e) { console.warn('⚠️ Delivery queue:', e.message); }
+    }
+
+    async pingLocation(lat, lng) {
+        const api = window.api;
+        if (!api || typeof api.pingAgentLocation !== 'function') return;
+        const agentId = this.state.user?._id || this.state.user?.id;
+        if (!agentId || this.state.user?.role !== 'agent') return;
+        try {
+            await api.pingAgentLocation(agentId, lat, lng);
+            this.state.agent.currentLocation = { lat, lng, updatedAt: Date.now() };
+            this.notify();
+        } catch (e) { console.warn('⚠️ Location ping:', e.message); }
+    }
+
+    // ── Escrow Tracker ──────────────────────────────────────────
+    updateEscrowStatus(orderId, status) {
+        this.state.escrow = {
+            status, orderId,
+            history: [
+                ...this.state.escrow.history,
+                { status, orderId, timestamp: Date.now() }
+            ]
+        };
+        this.notify();
+    }
 }
 
 // ============================================
 // 2. INITIALIZE GLOBAL STORE
 // ============================================
 const store = new AppStore();
+
+// ============================================
+// 2b. CLIENT-SIDE ROUTER (Headless SPA)
+// ============================================
+class Router {
+    constructor(appStore) {
+        this._store   = appStore;
+        this._routes  = [];
+        this._before  = null;
+        this._init();
+    }
+
+    _init() {
+        window.addEventListener('popstate', () => this._resolve(location.pathname + location.search + location.hash));
+        document.addEventListener('click', e => {
+            const a = e.target.closest('a[href]');
+            if (!a) return;
+            const href = a.getAttribute('href');
+            if (!href || href.startsWith('http') || href.startsWith('//') || href.startsWith('mailto:')) return;
+            e.preventDefault();
+            this.navigate(href);
+        });
+        // Resolve initial URL (hash-based routing)
+        this._resolve(location.hash || '/');
+    }
+
+    add(path, handler) {
+        const keys = [];
+        const pattern = path instanceof RegExp ? path
+            : new RegExp('^' + path.replace(/:([^/]+)/g, (_, k) => { keys.push(k); return '([^/]+)'; }) + '/?$');
+        this._routes.push({ pattern, keys, handler });
+        return this;
+    }
+
+    before(fn) { this._before = fn; return this; }
+
+    navigate(path, { replace = false } = {}) {
+        if (replace) history.replaceState(null, '', path);
+        else         history.pushState(null, '', path);
+        this._resolve(path);
+    }
+
+    async _resolve(fullPath) {
+        const clean  = fullPath.replace(/^#/, '');
+        const [path, qs] = clean.split('?');
+        const qParams = {};
+        if (qs) qs.split('&').forEach(p => { const [k, v] = p.split('='); qParams[k] = decodeURIComponent(v || ''); });
+
+        if (typeof this._before === 'function') {
+            const ok = await this._before(path, qParams);
+            if (ok === false) return;
+        }
+
+        for (const route of this._routes) {
+            const match = path.match(route.pattern);
+            if (!match) continue;
+            const params = { ...qParams };
+            route.keys.forEach((k, i) => { params[k] = decodeURIComponent(match[i + 1]); });
+            this._store.state.currentRoute  = path;
+            this._store.state.currentRouteParams = params;
+            this._store.state.routeLoading  = true;
+            this._store.notify();
+            if (window.NProgress) window.NProgress.start();
+            try   { await route.handler(params, this._store); }
+            finally {
+                this._store.state.routeLoading = false;
+                this._store.notify();
+                if (window.NProgress) window.NProgress.done();
+            }
+            return;
+        }
+        // No match → home
+        this._store.state.currentRoute = '/';
+        this._store.state.currentRouteParams = {};
+        this._store.notify();
+    }
+}
+
+const router = new Router(store);
+
+// Register core routes
+router
+    .add('/', async () => { /* home — products already loaded */ })
+    .add('/product/:id', async (params) => { await store.setSelectedProductById(params.id); })
+    .add('/checkout', async () => { store.openModal('checkout'); })
+    .add('/sellers', async () => { /* sellers section scroll */ })
+    .add('/about', async () => { /* about section scroll */ });
+
+window.router = router;
+
+// ============================================
+// 2c. HOVER PREFETCH — product cards
+// ============================================
+function setupProductPrefetch() {
+    document.addEventListener('mouseover', e => {
+        const card = e.target.closest('[data-product-id]');
+        if (!card) return;
+        const pid = card.dataset.productId;
+        if (!pid || store.state._prefetchCache[pid]) return;
+        store.state._prefetchCache[pid] = 'pending';
+
+        const timer = setTimeout(async () => {
+            const api = window.api;
+            if (!api || typeof api.getProduct !== 'function') return;
+            try {
+                const res = await api.getProduct(pid);
+                store.state._prefetchCache[pid] = res?.data;
+                console.log(`[Prefetch] ✅ product ${pid}`);
+            } catch { delete store.state._prefetchCache[pid]; }
+        }, 500);
+
+        card.addEventListener('mouseleave', () => {
+            clearTimeout(timer);
+            if (store.state._prefetchCache[pid] === 'pending') delete store.state._prefetchCache[pid];
+        }, { once: true });
+    });
+}
 
 // ============================================
 // 3. SELLER ONBOARDING WIZARD (Alpine x-data)
@@ -1299,7 +1683,56 @@ function appData() {
         closeMobileMenu() {
             store.closeMobileMenu();
         },
-        
+
+        // Condition filter
+        setCondition(condition) {
+            store.setConditionFilter(condition);
+        },
+
+        // Wishlist (Optimistic)
+        toggleWishlist(productId) {
+            store.toggleWishlist(productId);
+        },
+
+        isInWishlist(productId) {
+            return store.isInWishlist(productId);
+        },
+
+        // Location
+        async detectLocation() {
+            try {
+                await store.detectLocation();
+                await store.loadNearbyProducts();
+                store.showToast('📍 Location detected!', 'success');
+            } catch { store.showToast('Could not detect location.', 'warning'); }
+        },
+
+        // Auctions
+        async loadAuctions() {
+            return store.loadAuctions();
+        },
+
+        async placeBid(auctionId, amount) {
+            return store.placeBid(auctionId, amount);
+        },
+
+        // Push notifications
+        async requestPushPermission() {
+            return store.requestPushPermission();
+        },
+
+        // SPA Navigation
+        navigate(path) {
+            router.navigate('#' + path);
+        },
+
+        // Escrow status helper
+        isStatusReached(step) {
+            const ORDER = ['Paid', 'Held', 'InTransit', 'Delivered', 'Released'];
+            const cur   = store.state.escrow.status;
+            return cur && ORDER.indexOf(step) <= ORDER.indexOf(cur);
+        },
+
         // Scroll utilities
         scrollTo(elementId) {
             const element = document.getElementById(elementId);
@@ -1323,6 +1756,23 @@ function appData() {
             store.subscribe((newState) => {
                 this.$data.store = newState;
             });
+
+            // Start Web Vitals monitoring
+            if (typeof window.initWebVitals === 'function') window.initWebVitals();
+
+            // Set up hover prefetch
+            setupProductPrefetch();
+
+            // Set up lazy images via GlobalObserver
+            document.querySelectorAll('img[data-src]').forEach(img => {
+                if (window.GlobalObserver) window.GlobalObserver.lazyImage(img);
+            });
+
+            // Connect WebSocket if user is logged in
+            if (store.state.isLoggedIn) {
+                store.initWebSocket();
+                store.loadDeliveryQueue().catch(() => {});
+            }
         }
     };
 }
@@ -1331,7 +1781,6 @@ function appData() {
 // 4. DOCUMENT READY - Initialize App
 // ============================================
 document.addEventListener('DOMContentLoaded', () => {
-    // Initialize Alpine if not already done
     if (window.Alpine && !window.appInitialized) {
         console.log('✅ EmproiumVipani App Initialized');
         console.log('🛒 Products:', store.state.products.length);
@@ -1340,11 +1789,30 @@ document.addEventListener('DOMContentLoaded', () => {
         window.appInitialized = true;
     }
 
+    // Core Web Vitals monitoring
+    if (typeof window.initWebVitals === 'function') window.initWebVitals();
+
+    // Global API error handler — intercept fetch errors and show branded modals
+    const _origFetch = window.fetch;
+    window.fetch = async (...args) => {
+        try {
+            const res = await _origFetch(...args);
+            if ([401, 403, 404, 500].includes(res.status) && window.GlobalErrorHandler) {
+                if (res.status === 401) {
+                    window.GlobalErrorHandler.show(401, () => store.openModal('login'));
+                    store.logout();
+                }
+            }
+            return res;
+        } catch (err) {
+            if (window.GlobalErrorHandler) window.GlobalErrorHandler.show(0);
+            throw err;
+        }
+    };
+
     // Start periodic session expiry checks (every 30 seconds)
     setInterval(() => {
-        if (typeof store.checkSessionExpiry === 'function') {
-            store.checkSessionExpiry();
-        }
+        if (typeof store.checkSessionExpiry === 'function') store.checkSessionExpiry();
     }, 30000);
 });
 

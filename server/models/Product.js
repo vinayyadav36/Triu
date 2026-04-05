@@ -104,7 +104,45 @@ const productSchema = new mongoose.Schema(
         seoTitle: String,
         seoDescription: String,
         seoKeywords: [String],
-        
+
+        // AI / Vector Search — 1536-dim embedding (text-embedding-3-small)
+        // Excluded from normal queries via select:false to keep payloads small.
+        embedding: {
+            type: [Number],
+            select: false,
+        },
+
+        // Inventory & logistics
+        leadTime: {
+            type: Number,
+            default: 7,  // days until supplier can deliver restock
+            min: 0,
+        },
+
+        // Sustainability — kg CO₂ emitted per unit shipped (category-level estimate)
+        carbonFactor: {
+            type: Number,
+            default: 1.0,
+            min: 0,
+        },
+
+        // Legal Metrology & GST compliance
+        hsnCode: {
+            type: String,
+            trim: true,
+            maxlength: 8,
+        },
+        countryOfOrigin: {
+            type: String,
+            trim: true,
+            default: 'India',
+        },
+        mrp: {
+            type: Number,
+            min: 0,
+        },
+        netQuantity: String,   // e.g. "500g", "1 piece"
+
         // Status
         status: {
             type: String,

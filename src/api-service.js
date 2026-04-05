@@ -2,7 +2,17 @@
 // FRONTEND API SERVICE
 // ============================================
 
-const API_URL = import.meta.env?.VITE_API_URL || 'http://localhost:5000/api';
+// Resolve API base URL.  This file is loaded as a plain <script> (not an ES
+// module), so import.meta is unavailable.  Use a window-global injected by
+// the build/server, or fall back to localhost for development.
+const API_URL = (window.__ENV__ && window.__ENV__.VITE_API_URL)
+    ? window.__ENV__.VITE_API_URL
+    : 'http://localhost:5000/api';
+
+// Resolve the full origin of our API to scope JWT attachment
+const _API_ORIGIN = (() => {
+    try { return new URL(API_URL).origin; } catch { return window.location.origin; }
+})();
 
 class APIService {
     constructor() {
@@ -23,21 +33,60 @@ class APIService {
         this.token = null;
     }
 
+    // ── Sanitisation ──────────────────────────────────────────────────────────
+    /**
+     * Strip all HTML/script from a string value using DOMPurify (loaded
+     * synchronously in the page head).  If DOMPurify is somehow absent, the
+     * fallback returns an empty string — safer than applying incomplete
+     * regex-based sanitisation that may still pass XSS payloads.
+     */
+    _sanitize(value) {
+        if (typeof value !== 'string') return value;
+        if (window.DOMPurify) {
+            return window.DOMPurify.sanitize(value, { ALLOWED_TAGS: [], ALLOWED_ATTR: [] });
+        }
+        // DOMPurify is missing (should never happen in normal operation).
+        // Return an empty string rather than risk incomplete sanitisation.
+        return '';
+    }
+
+    _sanitizePayload(data) {
+        if (!data || typeof data !== 'object') return data;
+        if (Array.isArray(data)) return data.map(item => this._sanitizePayload(item));
+        const out = {};
+        for (const [k, v] of Object.entries(data)) {
+            out[k] = typeof v === 'string'  ? this._sanitize(v)
+                   : typeof v === 'object'  ? this._sanitizePayload(v)
+                   : v;
+        }
+        return out;
+    }
+
+    // ── Core request ──────────────────────────────────────────────────────────
     async request(method, endpoint, data = null) {
+        const url = `${API_URL}${endpoint}`;
+
+        // Only attach JWT when the request targets our own API origin (prevents token leaks to third-party CDNs etc.)
+        const token = this.getToken();
+        const isOwnApi = (() => {
+            try { return new URL(url).origin === _API_ORIGIN; } catch { return true; }
+        })();
+
         const options = {
             method,
             headers: {
                 'Content-Type': 'application/json',
-                ...( this.getToken() && { 'Authorization': `Bearer ${this.getToken()}` })
-            }
+                ...(isOwnApi && token ? { 'Authorization': `Bearer ${token}` } : {}),
+            },
         };
 
-        if (data && (method === 'POST' || method === 'PUT')) {
-            options.body = JSON.stringify(data);
+        if (data && (method === 'POST' || method === 'PUT' || method === 'PATCH')) {
+            const sanitized = this._sanitizePayload(data);
+            options.body = JSON.stringify(sanitized);
         }
 
         try {
-            const response = await fetch(`${API_URL}${endpoint}`, options);
+            const response = await fetch(url, options);
             const result = await response.json();
 
             if (!response.ok) {
@@ -432,6 +481,39 @@ class APIService {
 
     logout() {
         this.clearToken();
+    }
+
+    // ========== AI CONCIERGE SEARCH ==========
+    /**
+     * Intent-based semantic search (vector search with text fallback).
+     * @param {string} query  - Natural language query, e.g. "something for a beach wedding"
+     * @param {object} opts   - { limit, boostCategory }
+     */
+    async searchConcierge(query, opts = {}) {
+        return this.request('POST', '/search/concierge', {
+            query,
+            limit:         opts.limit         || 10,
+            boostCategory: opts.boostCategory  || null,
+        });
+    }
+
+    // ========== PERSONALISED PRODUCTS ==========
+    /**
+     * Fetch products with hyper-personalised category boosting.
+     * Reads the top category from Alpine.store('interests') automatically.
+     * @param {object} filters - standard product filters
+     */
+    async getPersonalizedProducts(filters = {}) {
+        const primaryCategory = (() => {
+            try {
+                return window.Alpine?.store('interests')?.getPrimaryCategory() || null;
+            } catch { return null; }
+        })();
+        const params = new URLSearchParams({
+            ...filters,
+            ...(primaryCategory ? { boostCategory: primaryCategory } : {}),
+        });
+        return this.request('GET', `/products?${params}`);
     }
 }
 

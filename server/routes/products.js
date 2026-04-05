@@ -4,17 +4,38 @@ const Product = require('../models/Product');
 const User = require('../models/User');
 const Order = require('../models/Order');
 const { verifyToken } = require('../middleware/auth');
+const { getVector } = require('../utils/embeddings');
 
 // Escape special regex characters to prevent ReDoS from user input
 const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// ── Category carbon factors (kg CO₂ per unit, shipping estimate) ────────────
+const CARBON_FACTORS = {
+    'Electronics':     5.2,
+    'Fashion':         3.5,
+    'Natural Products':0.8,
+    'Stationery':      0.5,
+    'Books':           0.3,
+    'Worksheets':      0.2,
+    'Home & Kitchen':  2.1,
+    'Toys & Games':    1.8,
+    'Health & Beauty': 1.2,
+    'Sports & Outdoors':2.0,
+    'Grocery':         0.6,
+    'Automotive':      4.5,
+    'Art & Crafts':    0.9,
+    'Baby Products':   1.5,
+    'Office Supplies': 0.7,
+    'Other':           1.0,
+};
 
 // ============================================
 // GET /api/products
 // ============================================
 router.get('/', async (req, res) => {
     try {
-        const { category, search, sortBy, limit = 12, page = 1 } = req.query;
-        const parsedPage = Math.max(1, parseInt(page, 10) || 1);
+        const { category, search, sortBy, limit = 12, page = 1, boostCategory } = req.query;
+        const parsedPage  = Math.max(1, parseInt(page, 10)  || 1);
         const parsedLimit = Math.min(100, Math.max(1, parseInt(limit, 10) || 12));
 
         let query = { status: 'active' };
@@ -24,13 +45,14 @@ router.get('/', async (req, res) => {
             query.category = category;
         }
 
-        // Search
+        // Search — use MongoDB $text index to avoid $regex injection vectors.
+        // A text index on { name: 'text', description: 'text' } must exist on
+        // the products collection (create in MongoDB Atlas or via migration).
         if (search) {
-            const safeSearch = escapeRegex(search);
-            query.$or = [
-                { name: { $regex: safeSearch, $options: 'i' } },
-                { description: { $regex: safeSearch, $options: 'i' } }
-            ];
+            const searchStr = String(search).slice(0, 200).trim();
+            if (searchStr) {
+                query.$text = { $search: searchStr };
+            }
         }
 
         // Sorting
@@ -43,12 +65,21 @@ router.get('/', async (req, res) => {
         // Pagination
         const skip = (parsedPage - 1) * parsedLimit;
 
-        // Execute query
-        const products = await Product.find(query)
+        // Execute query — fetch extra when boosting so we can reorder in-memory
+        const fetchLimit = boostCategory ? Math.min(parsedLimit * 3, 100) : parsedLimit;
+
+        let products = await Product.find(query)
             .sort(sortOptions)
-            .limit(parsedLimit)
+            .limit(fetchLimit)
             .skip(skip)
             .populate('sellerId', 'seller name');
+
+        // Hyper-personalised boost: float the preferred category to the top
+        if (boostCategory && products.length) {
+            const boosted   = products.filter(p => p.category === boostCategory);
+            const rest      = products.filter(p => p.category !== boostCategory);
+            products = [...boosted, ...rest].slice(0, parsedLimit);
+        }
 
         const total = await Product.countDocuments(query);
 
@@ -133,8 +164,19 @@ router.post('/', verifyToken, async (req, res) => {
             category,
             stock,
             images: images || [],
-            sellerId: userId
+            sellerId: userId,
+            hsnCode:         req.body.hsnCode         || '',
+            countryOfOrigin: req.body.countryOfOrigin || 'India',
+            mrp:             req.body.mrp             || price,
+            netQuantity:     req.body.netQuantity      || '',
+            leadTime:        req.body.leadTime         || 7,
+            carbonFactor:    CARBON_FACTORS[category]  || 1.0,
         });
+
+        // Generate and persist vector embedding (non-blocking)
+        getVector(`${name} ${description}`).then(vec => {
+            if (vec) Product.updateOne({ _id: product._id }, { embedding: vec }).catch(() => {});
+        }).catch(() => {});
 
         res.status(201).json({
             success: true,
@@ -173,14 +215,29 @@ router.put('/:id', verifyToken, async (req, res) => {
         }
 
         // Update allowed fields
-        const allowedUpdates = ['name', 'description', 'price', 'category', 'stock', 'images', 'status'];
+        const allowedUpdates = ['name', 'description', 'price', 'category', 'stock', 'images', 'status',
+                                'hsnCode', 'countryOfOrigin', 'mrp', 'netQuantity', 'leadTime'];
+        const textChanged = (req.body.name !== undefined && req.body.name !== product.name) ||
+                            (req.body.description !== undefined && req.body.description !== product.description);
+
         allowedUpdates.forEach(field => {
             if (req.body[field] !== undefined) {
                 product[field] = req.body[field];
             }
         });
 
+        if (req.body.category) {
+            product.carbonFactor = CARBON_FACTORS[req.body.category] || 1.0;
+        }
+
         await product.save();
+
+        // Re-generate embedding when searchable text changes (non-blocking)
+        if (textChanged) {
+            getVector(`${product.name} ${product.description}`).then(vec => {
+                if (vec) Product.updateOne({ _id: product._id }, { embedding: vec }).catch(() => {});
+            }).catch(() => {});
+        }
 
         res.json({
             success: true,

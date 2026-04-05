@@ -58,6 +58,7 @@ class AppStore {
             
             // Cart
             cart: [],
+            greenShipping: false,   // Green checkout offset toggle
             cartOpen: false,
             
             // Products & Filters
@@ -567,7 +568,42 @@ class AppStore {
     }
     
     getFinalTotal() {
-        return this.getCartTotal() + this.getShipping() - this.getDiscount();
+        const base = this.getCartTotal() + this.getShipping() - this.getDiscount();
+        return base + (this.state.greenShipping ? this.getGreenOffset() : 0);
+    }
+
+    // ── Green / Sustainable Checkout ──────────────────────────────────────────
+    // Carbon factors (kg CO₂ per unit) mirroring server-side CARBON_FACTORS
+    static get CARBON_FACTORS() {
+        return {
+            'Electronics':     5.2, 'Fashion':         3.5, 'Natural Products': 0.8,
+            'Stationery':      0.5, 'Books':           0.3, 'Worksheets':       0.2,
+            'Home & Kitchen':  2.1, 'Toys & Games':    1.8, 'Health & Beauty':  1.2,
+            'Sports & Outdoors':2.0,'Grocery':         0.6, 'Automotive':       4.5,
+            'Art & Crafts':    0.9, 'Baby Products':   1.5, 'Office Supplies':  0.7,
+            'Other':           1.0,
+        };
+    }
+
+    /** Total estimated kg CO₂ for the current cart */
+    getCartCarbonKg() {
+        const factors = AppStore.CARBON_FACTORS;
+        return parseFloat(this.state.cart.reduce((total, item) => {
+            const product = this.state.products.find(p => p.id === item.id);
+            const factor  = product ? (factors[product.category] || 1.0) : 1.0;
+            return total + (factor * item.quantity * 0.1); // 0.1 base weight per unit
+        }, 0).toFixed(2));
+    }
+
+    /** Offset fee in ₹ (₹10 per kg CO₂, min ₹5) */
+    getGreenOffset() {
+        const kg = this.getCartCarbonKg();
+        return Math.max(5, Math.ceil(kg * 10));
+    }
+
+    toggleGreenShipping() {
+        this.state.greenShipping = !this.state.greenShipping;
+        this.notify();
     }
     
     getSeller(sellerId) {
@@ -576,6 +612,9 @@ class AppStore {
 
     // ========== Product Detail ==========
     async setSelectedProductById(productId) {
+        // Record dwell-start time for hyper-personalisation
+        this._dwellStart = Date.now();
+
         // Check prefetch cache first (populated by hover)
         const cached = this.state._prefetchCache[productId];
         let product = cached && typeof cached === 'object' && cached.id
@@ -606,10 +645,16 @@ class AppStore {
                 window.MetaTags.update({
                     title:       product.name,
                     description: product.description
-                        || `Buy ${product.name} – ₹${product.price} | EmproiumVipani`,
+                        || `Buy ${product.name} – ₹${product.price} | EmporiumVipani`,
                     image: product.image && product.image.startsWith('http') ? product.image : undefined,
                     url:   `${window.location.origin}/#product-${product.id}`,
                 });
+            }
+
+            // Sync Alpine SEO store for live document.title update
+            if (window.Alpine) {
+                const seoStore = window.Alpine.store('seo');
+                if (seoStore) seoStore.set(product.name, product.description || '', product.image || '');
             }
 
             // Dynamic remarketing data layer (Google Ads)
@@ -632,9 +677,24 @@ class AppStore {
     }
 
     clearSelectedProduct() {
+        // Commit dwell-time to interests store before clearing
+        if (this._dwellStart && this.state.selectedProduct) {
+            const seconds = Math.floor((Date.now() - this._dwellStart) / 1000);
+            const category = this.state.selectedProduct.category;
+            if (seconds > 0 && category && window.Alpine) {
+                const interests = window.Alpine.store('interests');
+                if (interests) interests.recordView(category, seconds);
+            }
+        }
+        this._dwellStart = null;
         this.state.selectedProduct = null;
         if (window.MetaTags)       window.MetaTags.reset();
         if (window.StructuredData) window.StructuredData.removeProduct();
+        // Reset Alpine SEO store
+        if (window.Alpine) {
+            const seoStore = window.Alpine.store('seo');
+            if (seoStore) seoStore.reset();
+        }
         this.notify();
     }
     
@@ -1435,6 +1495,7 @@ window.sellerDashboard = function() {
         sellerTab: 'overview',
         showAddProductForm: false,
         newProduct: { name: '', category: 'Natural Products', price: '', mrp: '', stock: '', description: '', thumbnail: '', weight: '', brand: '' },
+        _refreshInterval: null,
 
         products: [
             { _id: 'p1', name: 'Organic Turmeric Powder', category: 'Natural Products', price: 299, mrp: 399, stock: 124, status: 'active', sales: 567 },
@@ -1460,6 +1521,44 @@ window.sellerDashboard = function() {
 
         kpis: { totalRevenue: 89450, totalOrders: 178, totalProducts: 8, thisMonthEarnings: 12300 },
 
+        // DASH-01: inventory health (predictive days-of-cover)
+        inventoryHealth: [],
+
+        init() {
+            this.buildInventoryHealth();
+            // DASH-01: auto-refresh stats every 60 seconds
+            this._refreshInterval = setInterval(() => { this.refreshStats(); }, 60000);
+        },
+
+        destroy() {
+            if (this._refreshInterval) clearInterval(this._refreshInterval);
+        },
+
+        async refreshStats() {
+            try {
+                const data = await window.api?.request('GET', '/sellers/dashboard');
+                if (data?.kpis) Object.assign(this.kpis, data.kpis);
+            } catch { /* silent refresh failure is acceptable */ }
+        },
+
+        buildInventoryHealth() {
+            // Calculate days-of-cover from sales velocity (≥7 data points needed in production)
+            // Using current snapshot: velocity ≈ sales/30 days
+            this.inventoryHealth = this.products.map(p => {
+                const velocity = p.sales > 0 ? p.sales / 30 : 0;
+                const daysLeft  = velocity > 0 ? Math.floor(p.stock / velocity) : null;
+                const leadTime  = p.leadTime || 7;
+                return {
+                    ...p,
+                    daysLeft,
+                    velocity:   velocity.toFixed(1),
+                    isUrgent:   daysLeft !== null && daysLeft < leadTime,
+                    isWarning:  daysLeft !== null && daysLeft < leadTime + 3,
+                    leadTime,
+                };
+            });
+        },
+
         async saveNewProduct() {
             if (!this.newProduct.name || !this.newProduct.price || this.newProduct.stock === '') {
                 if (window.Toast) Toast.show('Please fill required fields', 'error');
@@ -1484,6 +1583,7 @@ window.sellerDashboard = function() {
             this.newProduct = { name: '', category: 'Natural Products', price: '', mrp: '', stock: '', description: '', thumbnail: '', weight: '', brand: '' };
             this.showAddProductForm = false;
             this.kpis.totalProducts++;
+            this.buildInventoryHealth();
             if (window.Toast) Toast.show('✅ Product added!', 'success');
         },
 
@@ -1495,6 +1595,7 @@ window.sellerDashboard = function() {
         deleteProduct(productId) {
             this.products = this.products.filter(p => p._id !== productId);
             this.kpis.totalProducts = Math.max(0, this.kpis.totalProducts - 1);
+            this.buildInventoryHealth();
             if (window.Toast) Toast.show('Product removed', 'info');
         },
 
@@ -1511,6 +1612,132 @@ window.sellerDashboard = function() {
         }
     };
 };
+
+// ============================================
+// 3c. ALPINE:INIT — Global stores & components
+// Registered here so they are ready before Alpine.start() fires.
+// NOTE: app.js runs synchronously before deferred CDN scripts.
+//       Alpine fires `alpine:init` after all deferred scripts have run,
+//       so this listener is guaranteed to execute.
+// ============================================
+document.addEventListener('alpine:init', () => {
+
+    // ── SEO store — keeps document.title and og:image in sync ──────────────
+    Alpine.store('seo', {
+        set(title, desc, image) {
+            document.title = title ? `${title} | EmporiumVipani` : 'EmporiumVipani – Curated Objects';
+            const d = document.querySelector('meta[name="description"]');
+            if (d) d.setAttribute('content', desc || '');
+            const og = document.querySelector('meta[property="og:image"]');
+            if (og && image) og.setAttribute('content', image);
+            const ogT = document.querySelector('meta[property="og:title"]');
+            if (ogT) ogT.setAttribute('content', document.title);
+            const ogD = document.querySelector('meta[property="og:description"]');
+            if (ogD) ogD.setAttribute('content', desc || '');
+        },
+        reset() {
+            document.title = 'EmporiumVipani – Curated Objects';
+        },
+    });
+
+    // ── Search store — shared query between typed & voice search ───────────
+    Alpine.store('search', {
+        query: '',
+    });
+
+    // ── Interests store — hyper-personalised feed (manual localStorage) ────
+    // Uses manual persistence so it works regardless of Alpine.plugin order.
+    Alpine.store('interests', {
+        scores: JSON.parse(localStorage.getItem('ev_interests') || '{}'),
+
+        recordView(category, seconds) {
+            if (!category || seconds <= 0) return;
+            const points = Math.min(Math.floor(seconds / 5), 5); // 1 pt per 5s, cap 5
+            this.scores[category] = (this.scores[category] || 0) + points;
+            try { localStorage.setItem('ev_interests', JSON.stringify(this.scores)); } catch { /* quota */ }
+        },
+
+        getPrimaryCategory() {
+            const keys = Object.keys(this.scores);
+            if (!keys.length) return null;
+            return keys.reduce((a, b) => this.scores[a] >= this.scores[b] ? a : b);
+        },
+    });
+
+    // ── Consent store — DPDP Act 2023 ─────────────────────────────────────
+    Alpine.store('consent', {
+        accepted:    localStorage.getItem('ev_consent') === 'true',
+        marketing:   localStorage.getItem('ev_consent_mkt') === 'true',
+        personalise: localStorage.getItem('ev_consent_prs') === 'true',
+
+        accept(marketing, personalise) {
+            this.accepted    = true;
+            this.marketing   = !!marketing;
+            this.personalise = !!personalise;
+            try {
+                localStorage.setItem('ev_consent',     'true');
+                localStorage.setItem('ev_consent_mkt', String(!!marketing));
+                localStorage.setItem('ev_consent_prs', String(!!personalise));
+            } catch { /* quota */ }
+        },
+
+        decline() {
+            this.accepted = true; // banner dismissed — minimum required
+            try {
+                localStorage.setItem('ev_consent',     'false');
+                localStorage.setItem('ev_consent_mkt', 'false');
+                localStorage.setItem('ev_consent_prs', 'false');
+            } catch { /* quota */ }
+        },
+    });
+
+    // ── voiceSearch component ──────────────────────────────────────────────
+    Alpine.data('voiceSearch', () => ({
+        isListening:  false,
+        isSupported:  !!(window.SpeechRecognition || window.webkitSpeechRecognition),
+        recognition:  null,
+
+        init() {
+            if (!this.isSupported) return;
+            const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+            this.recognition = new SR();
+            this.recognition.continuous     = false;
+            this.recognition.interimResults = false;
+            this.recognition.lang           = 'en-IN';
+
+            this.recognition.onstart  = () => { this.isListening = true; };
+            this.recognition.onend    = () => { this.isListening = false; };
+            this.recognition.onerror  = (e) => { console.warn('Speech error:', e.error); this.isListening = false; };
+            this.recognition.onresult = (e) => {
+                const transcript = e.results[0][0].transcript;
+                Alpine.store('search').query = transcript;
+                this._executeSearch(transcript);
+            };
+        },
+
+        toggleListening() {
+            if (!this.recognition) return;
+            this.isListening ? this.recognition.stop() : this.recognition.start();
+        },
+
+        _executeSearch(query) {
+            // Update AppStore filter so the existing search pipeline triggers
+            if (window.store) window.store.setFilter('search', query);
+        },
+    }));
+});
+
+// ── Commit any pending dwell time on tab/window close ──────────────────────
+window.addEventListener('beforeunload', () => {
+    if (window.store?._dwellStart && window.store?.state?.selectedProduct) {
+        const seconds  = Math.floor((Date.now() - window.store._dwellStart) / 1000);
+        const category = window.store.state.selectedProduct.category;
+        if (seconds > 0 && category && window.Alpine) {
+            const interests = window.Alpine.store('interests');
+            if (interests) interests.recordView(category, seconds);
+        }
+    }
+});
 
 // ============================================
 // 4. ALPINE.JS APP INITIALIZATION
@@ -1750,6 +1977,11 @@ function appData() {
         formatNumber(num) {
             return num.toLocaleString('en-IN');
         },
+
+        // Green checkout helpers
+        getCartCarbonKg() { return store.getCartCarbonKg(); },
+        getGreenOffset()  { return store.getGreenOffset(); },
+        toggleGreenShipping() { store.toggleGreenShipping(); },
         
         // Subscribe to store updates
         init() {
@@ -1782,7 +2014,7 @@ function appData() {
 // ============================================
 document.addEventListener('DOMContentLoaded', () => {
     if (window.Alpine && !window.appInitialized) {
-        console.log('✅ EmproiumVipani App Initialized');
+        console.log('✅ EmporiumVipani App Initialized');
         console.log('🛒 Products:', store.state.products.length);
         console.log('👥 Sellers:', store.state.sellers.length);
         console.log('📧 EmailJS Configured:', !!window.EmailManager);

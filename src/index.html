@@ -91,10 +91,19 @@
     }
   </script>
 
+  <!-- Content Security Policy — restricts script/style/frame sources -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' cdn.jsdelivr.net cdn.tailwindcss.com cdn.emailjs.com checkout.razorpay.com; style-src 'self' 'unsafe-inline' fonts.googleapis.com cdn.tailwindcss.com; font-src 'self' fonts.gstatic.com data:; connect-src 'self' https:; img-src 'self' data: https: blob:; frame-src checkout.razorpay.com; object-src 'none'; base-uri 'self';" />
+
   <!-- Fonts -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:wght@600;700;900&display=swap" rel="stylesheet"/>
 
-  <!-- Alpine.js -->
+  <!-- DOMPurify — XSS sanitisation for user-generated content -->
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+
+  <!-- Alpine.js Persist plugin (must load BEFORE Alpine core) -->
+  <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/persist@3.x.x/dist/cdn.min.js"></script>
+
+  <!-- Alpine.js core -->
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 
   <!-- EmailJS -->
@@ -103,7 +112,8 @@
   <!-- Custom CSS -->
   <link rel="stylesheet" href="styles.css" />
 </head>
-<body class="bg-ink-900 text-slate-100 antialiased" x-data="appData()" x-init="init()">
+<body class="bg-ink-900 text-slate-100 antialiased" x-data="appData()" x-init="init()"
+      x-effect="$store.seo && store.selectedProduct ? $store.seo.set(store.selectedProduct.name, store.selectedProduct.description || '', store.selectedProduct.image || '') : ($store.seo && $store.seo.reset())">
 
   <!-- GLOBAL BACKGROUND -->
   <div class="fixed inset-0 -z-10">
@@ -454,12 +464,26 @@
                 <option value="rating">Rating</option>
                 <option value="newest">Newest</option>
               </select>
-              <input
-                type="text"
-                placeholder="Search catalogue"
-                class="rounded-full border border-[#374151] bg-black/60 px-3 py-1.5 text-[11px] text-slate-100 placeholder:text-slate-500 w-full md:w-44"
-                x-model="store.filters.search"
-                @input="search(store.filters.search)" />
+              <div x-data="voiceSearch" class="relative flex items-center">
+                <input
+                  type="text"
+                  placeholder="Search catalogue"
+                  class="rounded-full border border-[#374151] bg-black/60 px-3 py-1.5 pr-8 text-[11px] text-slate-100 placeholder:text-slate-500 w-full md:w-44"
+                  x-model="store.filters.search"
+                  @input="search(store.filters.search)" />
+                <!-- Mic button — only shown in supported browsers -->
+                <button x-show="isSupported"
+                  @click="toggleListening()"
+                  type="button"
+                  title="Voice search"
+                  class="absolute right-2 p-0.5 rounded-full transition-colors"
+                  :class="isListening ? 'text-red-400 animate-pulse' : 'text-slate-500 hover:text-emeraldSoft'">
+                  <!-- Mic icon -->
+                  <svg x-show="!isListening" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
+                  <!-- Stop icon when listening -->
+                  <svg x-show="isListening" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/></svg>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -721,8 +745,14 @@
               <div class="text-slate-400">Loading your orders…</div>
             </template>
             <template x-if="!store.account.loading.orders && store.account.orders.length === 0">
-              <div class="text-slate-400">
-                No orders yet. Once you place an order, it will appear here with status and delivery details.
+              <div class="flex flex-col items-center gap-3 py-10 text-center">
+                <div class="w-14 h-14 rounded-full bg-slate-800 flex items-center justify-center text-2xl">🛍️</div>
+                <div class="text-slate-300 font-medium text-sm">No orders yet</div>
+                <div class="text-[11px] text-slate-500 max-w-[220px]">Once you place an order it will appear here with live status and delivery details.</div>
+                <button @click="store.modals.account = false; scrollTo('products')"
+                        class="mt-1 btn btn-outline text-[11px] px-4 py-1.5">
+                  Start Shopping
+                </button>
               </div>
             </template>
             <div class="space-y-2" x-show="!store.account.loading.orders && store.account.orders.length > 0">
@@ -820,6 +850,32 @@
                       <div class="text-base font-semibold text-emeraldSoft mt-0.5" x-text="'₹' + kpis.thisMonthEarnings.toLocaleString('en-IN')"></div>
                     </div>
                   </div>
+
+                  <!-- 🔮 Inventory Health (Predictive stock alerts) -->
+                  <template x-if="inventoryHealth.some(p => p.isWarning)">
+                    <div class="space-y-1.5">
+                      <div class="text-[10px] uppercase tracking-[0.15em] text-slate-400">Inventory Alerts</div>
+                      <template x-for="p in inventoryHealth.filter(h => h.isWarning)" :key="p._id">
+                        <div class="rounded-lg border p-3 text-[11px]"
+                             :class="p.isUrgent ? 'bg-red-900/20 border-red-500/50' : 'bg-amber-900/10 border-amber-500/30'">
+                          <div class="flex items-center justify-between">
+                            <div>
+                              <span class="font-semibold text-slate-200" x-text="p.name"></span>
+                              <span class="ml-2 text-slate-400">· <span x-text="p.stock"></span> units</span>
+                            </div>
+                            <span class="rounded px-1.5 py-0.5 text-[10px] font-bold"
+                                  :class="p.isUrgent ? 'bg-red-500 text-white' : 'bg-amber-500/80 text-white'"
+                                  x-text="(p.daysLeft ?? '?') + ' days left'"></span>
+                          </div>
+                          <template x-if="p.isUrgent">
+                            <div class="mt-1.5 text-[10px] text-red-300">
+                              ⚠️ Reorder now — supplier lead time is <span x-text="p.leadTime"></span> day(s).
+                            </div>
+                          </template>
+                        </div>
+                      </template>
+                    </div>
+                  </template>
                   <!-- Seller status & profile -->
                   <div class="card-dark p-4 space-y-2">
                     <div class="flex items-center justify-between">
@@ -1247,6 +1303,29 @@
             <span x-text="'- ' + formatPrice(getDiscount())"></span>
           </div>
         </template>
+
+        <!-- 🌿 Green Checkout — eco-impact & carbon offset -->
+        <template x-if="store.cart.length > 0">
+          <div class="rounded-xl border border-emerald-500/30 bg-emerald-900/10 p-3 space-y-2">
+            <div class="flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" class="text-emerald-400 shrink-0" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C10.26 14.33 10 13 10 13"/></svg>
+              <span class="text-[11px] text-slate-300">
+                Shipping impact: <span class="text-emerald-400 font-semibold" x-text="getCartCarbonKg() + ' kg CO₂'"></span>
+              </span>
+            </div>
+            <label class="flex items-center justify-between cursor-pointer rounded-lg bg-black/40 border border-transparent hover:border-emerald-500/40 transition px-2 py-1.5">
+              <div class="flex items-center gap-2">
+                <input type="checkbox" :checked="store.greenShipping" @change="toggleGreenShipping()" class="w-4 h-4 accent-emerald-500" />
+                <span class="text-[11px] text-slate-300">Make this order Carbon Neutral</span>
+              </div>
+              <span class="text-[11px] font-semibold text-emerald-400" x-text="'+ ' + formatPrice(getGreenOffset())"></span>
+            </label>
+            <p x-show="store.greenShipping" x-transition class="text-[10px] text-emerald-500/80 italic text-center">
+              🌱 You're planting a mangrove tree in the Sundarbans with this purchase!
+            </p>
+          </div>
+        </template>
+
         <div class="flex justify-between border-t border-[#111827] pt-2 font-semibold text-slate-100">
           <span>Total</span>
           <span x-text="formatPrice(getFinalTotal())"></span>
@@ -1805,5 +1884,49 @@
   <script src="api-service.js"></script>
   <script src="form-handlers.js"></script>
   <script src="app.js"></script>
+
+  <!-- ============================================
+       DPDP CONSENT BANNER (Act 2023)
+       Shown on first visit; no pre-ticked boxes.
+       ============================================ -->
+  <div x-data
+       x-show="$store.consent && !$store.consent.accepted"
+       x-transition:enter="transition ease-out duration-300"
+       x-transition:enter-start="opacity-0 translate-y-4"
+       x-transition:enter-end="opacity-100 translate-y-0"
+       class="fixed bottom-4 left-1/2 -translate-x-1/2 z-[9999] w-[calc(100%-2rem)] max-w-lg bg-[#0d1526] border border-[#1e293b] rounded-2xl shadow-2xl p-4 text-[11px] text-slate-300">
+    <div class="flex items-start gap-3 mb-3">
+      <span class="text-xl shrink-0">🔒</span>
+      <div>
+        <div class="font-semibold text-slate-100 mb-1">Your Data, Your Choice</div>
+        <p class="text-slate-400 leading-relaxed">
+          We collect your Name, Email, and Location solely to fulfil orders. We do not sell your data.
+          You can exercise your <strong class="text-slate-300">Right to Erasure</strong> at any time from your profile.
+          <a href="/legal/privacy.html" class="text-emeraldSoft hover:underline ml-1">Privacy Policy</a>
+        </p>
+      </div>
+    </div>
+    <div class="space-y-2 mb-3 pl-1">
+      <label class="flex items-center gap-2 cursor-pointer">
+        <input type="checkbox" id="consent-mkt" class="w-4 h-4 accent-emerald-500" />
+        <span>Marketing & promotional messages <span class="text-slate-500">(optional)</span></span>
+      </label>
+      <label class="flex items-center gap-2 cursor-pointer">
+        <input type="checkbox" id="consent-prs" class="w-4 h-4 accent-emerald-500" />
+        <span>Personalise my feed based on browsing <span class="text-slate-500">(optional)</span></span>
+      </label>
+    </div>
+    <div class="flex gap-2">
+      <button @click="$store.consent.accept(document.getElementById('consent-mkt').checked, document.getElementById('consent-prs').checked)"
+              class="btn btn-primary flex-1 text-[11px] py-1.5">
+        Accept selected
+      </button>
+      <button @click="$store.consent.decline()"
+              class="btn btn-outline flex-1 text-[11px] py-1.5">
+        Decline optional
+      </button>
+    </div>
+  </div>
+
 </body>
 </html>

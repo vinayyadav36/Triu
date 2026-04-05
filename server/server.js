@@ -7,6 +7,7 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const mongoose = require('mongoose');
 const rateLimit = require('express-rate-limit');
+const { auditLogger } = require('./utils/auditLogger');
 
 // Load environment variables
 dotenv.config();
@@ -37,6 +38,9 @@ const limiter = rateLimit({
     message: 'Too many requests, please try again later'
 });
 app.use('/api/', limiter);
+
+// DPDP-compliant audit logging for all API routes
+app.use(auditLogger);
 
 // ============================================
 // 2. DATABASE CONNECTION
@@ -73,6 +77,10 @@ app.use('/api/orders', require('./routes/orders'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/payments', require('./routes/payments'));
+app.use('/api/search', require('./routes/search'));
+
+// Dynamic sitemap (served at root path, outside /api prefix)
+app.use('/sitemap.xml', require('./routes/sitemap'));
 
 // 404 handler
 app.use('*', (req, res) => {

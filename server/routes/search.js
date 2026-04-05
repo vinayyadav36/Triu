@@ -10,8 +10,6 @@ const router  = express.Router();
 const Product = require('../models/Product');
 const { getVector } = require('../utils/embeddings');
 
-const escapeRegex = str => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
 /**
  * POST /api/search/concierge
  * Body: { query: string, limit?: number, boostCategory?: string }
@@ -74,15 +72,12 @@ router.post('/concierge', async (req, res) => {
             });
         }
 
-        // ── Fallback: text / regex search ────────────────────────────────
-        const safeQuery = escapeRegex(cleanQuery);
+        // ── Fallback: MongoDB $text search ───────────────────────────────
+        // Requires a text index on { name: 'text', description: 'text', category: 'text' }.
+        // Using $text avoids $regex injection vectors (CodeQL js/sql-injection).
         const filter = {
             status: 'active',
-            $or: [
-                { name:        { $regex: safeQuery, $options: 'i' } },
-                { description: { $regex: safeQuery, $options: 'i' } },
-                { category:    { $regex: safeQuery, $options: 'i' } },
-            ],
+            $text: { $search: cleanQuery },
         };
 
         let results = await Product

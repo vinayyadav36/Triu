@@ -44,7 +44,7 @@ function inventoryAlert(daysRemaining, leadTimeDays = 7) {
             message: `⚠️ Reorder NOW — stock runs out in ${daysRemaining} day(s), but your supplier takes ${leadTimeDays} days to deliver.`,
         };
     }
-    if (daysRemaining < warningThreshold + SAFETY_BUFFER_DAYS) {
+    if (daysRemaining < warningThreshold) {
         return {
             urgent: false,
             warning: true,

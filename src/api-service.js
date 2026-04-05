@@ -35,23 +35,19 @@ class APIService {
 
     // ── Sanitisation ──────────────────────────────────────────────────────────
     /**
-     * Strip all HTML/script from a string value using DOMPurify.
-     * Falls back to aggressively removing any angle-bracket content when
-     * DOMPurify is not loaded.  The fallback handles multi-line and
-     * encoded variants to prevent residual XSS vectors.
+     * Strip all HTML/script from a string value using DOMPurify (loaded
+     * synchronously in the page head).  If DOMPurify is somehow absent, the
+     * fallback returns an empty string — safer than applying incomplete
+     * regex-based sanitisation that may still pass XSS payloads.
      */
     _sanitize(value) {
         if (typeof value !== 'string') return value;
         if (window.DOMPurify) {
             return window.DOMPurify.sanitize(value, { ALLOWED_TAGS: [], ALLOWED_ATTR: [] });
         }
-        // Fallback: collapse whitespace inside tags first (catches <scr\nipt>),
-        // then strip all remaining angle-bracket sequences.
-        return value
-            .replace(/[\r\n\t]/g, ' ')
-            .replace(/<[^>]*>/g, '')
-            .replace(/javascript\s*:/gi, '')
-            .replace(/on\w+\s*=/gi, '');
+        // DOMPurify is missing (should never happen in normal operation).
+        // Return an empty string rather than risk incomplete sanitisation.
+        return '';
     }
 
     _sanitizePayload(data) {

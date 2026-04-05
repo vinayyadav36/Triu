@@ -645,7 +645,7 @@ class AppStore {
                 window.MetaTags.update({
                     title:       product.name,
                     description: product.description
-                        || `Buy ${product.name} – ₹${product.price} | EmproiumVipani`,
+                        || `Buy ${product.name} – ₹${product.price} | EmporiumVipani`,
                     image: product.image && product.image.startsWith('http') ? product.image : undefined,
                     url:   `${window.location.origin}/#product-${product.id}`,
                 });
@@ -1625,7 +1625,7 @@ document.addEventListener('alpine:init', () => {
     // ── SEO store — keeps document.title and og:image in sync ──────────────
     Alpine.store('seo', {
         set(title, desc, image) {
-            document.title = title ? `${title} | EmproiumVipani` : 'EmproiumVipani – Curated Objects';
+            document.title = title ? `${title} | EmporiumVipani` : 'EmporiumVipani – Curated Objects';
             const d = document.querySelector('meta[name="description"]');
             if (d) d.setAttribute('content', desc || '');
             const og = document.querySelector('meta[property="og:image"]');
@@ -1636,7 +1636,7 @@ document.addEventListener('alpine:init', () => {
             if (ogD) ogD.setAttribute('content', desc || '');
         },
         reset() {
-            document.title = 'EmproiumVipani – Curated Objects';
+            document.title = 'EmporiumVipani – Curated Objects';
         },
     });
 
@@ -2014,7 +2014,7 @@ function appData() {
 // ============================================
 document.addEventListener('DOMContentLoaded', () => {
     if (window.Alpine && !window.appInitialized) {
-        console.log('✅ EmproiumVipani App Initialized');
+        console.log('✅ EmporiumVipani App Initialized');
         console.log('🛒 Products:', store.state.products.length);
         console.log('👥 Sellers:', store.state.sellers.length);
         console.log('📧 EmailJS Configured:', !!window.EmailManager);

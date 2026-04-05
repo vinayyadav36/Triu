@@ -45,14 +45,14 @@ router.get('/', async (req, res) => {
             query.category = category;
         }
 
-        // Search — validate and sanitise before building regex
+        // Search — use MongoDB $text index to avoid $regex injection vectors.
+        // A text index on { name: 'text', description: 'text' } must exist on
+        // the products collection (create in MongoDB Atlas or via migration).
         if (search) {
-            const searchStr = String(search).slice(0, 200); // cap length
-            const safeSearch = escapeRegex(searchStr);
-            query.$or = [
-                { name:        { $regex: safeSearch, $options: 'i' } },
-                { description: { $regex: safeSearch, $options: 'i' } },
-            ];
+            const searchStr = String(search).slice(0, 200).trim();
+            if (searchStr) {
+                query.$text = { $search: searchStr };
+            }
         }
 
         // Sorting

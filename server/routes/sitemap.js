@@ -5,9 +5,18 @@
 // GET /sitemap.xml
 // ============================================
 
-const express = require('express');
-const router  = express.Router();
-const Product = require('../models/Product');
+const express    = require('express');
+const router     = express.Router();
+const rateLimit  = require('express-rate-limit');
+const Product    = require('../models/Product');
+
+const sitemapLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: 20,                   // max 20 requests per IP per hour (bots/crawlers)
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: 'Too many sitemap requests',
+});
 
 function xmlEscape(str) {
     return String(str || '')
@@ -18,7 +27,7 @@ function xmlEscape(str) {
         .replace(/'/g, '&apos;');
 }
 
-router.get('/', async (req, res) => {
+router.get('/', sitemapLimiter, async (req, res) => {
     try {
         const BASE = (process.env.CLIENT_URL || 'https://emporiumvipani.com').replace(/\/$/, '');
 

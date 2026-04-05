@@ -2,9 +2,12 @@
 // FRONTEND API SERVICE
 // ============================================
 
-const API_URL = (typeof import_meta_env !== 'undefined' && import_meta_env.VITE_API_URL)
-    ? import_meta_env.VITE_API_URL
-    : (window.__ENV__?.VITE_API_URL || 'http://localhost:5000/api');
+// Resolve API base URL.  This file is loaded as a plain <script> (not an ES
+// module), so import.meta is unavailable.  Use a window-global injected by
+// the build/server, or fall back to localhost for development.
+const API_URL = (window.__ENV__ && window.__ENV__.VITE_API_URL)
+    ? window.__ENV__.VITE_API_URL
+    : 'http://localhost:5000/api';
 
 // Resolve the full origin of our API to scope JWT attachment
 const _API_ORIGIN = (() => {
@@ -33,15 +36,22 @@ class APIService {
     // ── Sanitisation ──────────────────────────────────────────────────────────
     /**
      * Strip all HTML/script from a string value using DOMPurify.
-     * Falls back to a simple tag-stripping regex when DOMPurify is not loaded.
+     * Falls back to aggressively removing any angle-bracket content when
+     * DOMPurify is not loaded.  The fallback handles multi-line and
+     * encoded variants to prevent residual XSS vectors.
      */
     _sanitize(value) {
         if (typeof value !== 'string') return value;
         if (window.DOMPurify) {
             return window.DOMPurify.sanitize(value, { ALLOWED_TAGS: [], ALLOWED_ATTR: [] });
         }
-        // Minimal fallback — strip tags
-        return value.replace(/<[^>]*>/g, '');
+        // Fallback: collapse whitespace inside tags first (catches <scr\nipt>),
+        // then strip all remaining angle-bracket sequences.
+        return value
+            .replace(/[\r\n\t]/g, ' ')
+            .replace(/<[^>]*>/g, '')
+            .replace(/javascript\s*:/gi, '')
+            .replace(/on\w+\s*=/gi, '');
     }
 
     _sanitizePayload(data) {

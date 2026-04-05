@@ -31,10 +31,12 @@ function calculateDaysRemaining(salesHistory, currentStock) {
  * @returns {{ urgent: boolean, warning: boolean, message: string }}
  */
 function inventoryAlert(daysRemaining, leadTimeDays = 7) {
+    const SAFETY_BUFFER_DAYS = 2; // extra cushion beyond lead time before raising a warning
+
     if (daysRemaining === null) return { urgent: false, warning: false, message: 'Insufficient sales data for prediction.' };
     if (daysRemaining === Infinity) return { urgent: false, warning: false, message: 'No sales velocity detected.' };
 
-    const buffer = leadTimeDays + 2; // 2-day safety buffer
+    const warningThreshold = leadTimeDays + SAFETY_BUFFER_DAYS;
     if (daysRemaining < leadTimeDays) {
         return {
             urgent: true,
@@ -42,7 +44,7 @@ function inventoryAlert(daysRemaining, leadTimeDays = 7) {
             message: `⚠️ Reorder NOW — stock runs out in ${daysRemaining} day(s), but your supplier takes ${leadTimeDays} days to deliver.`,
         };
     }
-    if (daysRemaining < buffer + 3) {
+    if (daysRemaining < warningThreshold + SAFETY_BUFFER_DAYS) {
         return {
             urgent: false,
             warning: true,

@@ -45,12 +45,13 @@ router.get('/', async (req, res) => {
             query.category = category;
         }
 
-        // Search
+        // Search — validate and sanitise before building regex
         if (search) {
-            const safeSearch = escapeRegex(search);
+            const searchStr = String(search).slice(0, 200); // cap length
+            const safeSearch = escapeRegex(searchStr);
             query.$or = [
-                { name: { $regex: safeSearch, $options: 'i' } },
-                { description: { $regex: safeSearch, $options: 'i' } }
+                { name:        { $regex: safeSearch, $options: 'i' } },
+                { description: { $regex: safeSearch, $options: 'i' } },
             ];
         }
 

@@ -49,7 +49,6 @@
   "jest": {
     "testEnvironment": "node",
     "testTimeout": 30000,
-    "setupFilesAfterFramework": [],
     "coverageDirectory": "coverage",
     "collectCoverageFrom": [
       "routes/**/*.js",

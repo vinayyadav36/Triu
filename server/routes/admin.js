@@ -560,13 +560,24 @@ router.put('/orders/:id/refund', verifyToken, verifyAdmin, async (req, res) => {
 });
 
 // ============================================
+// Finance helper — safe date parsing
+// Rejects non-ISO-8601 strings to prevent NoSQL operator injection
+// ============================================
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}(T[\d:.Z+-]{0,29})?$/;
+function parseSafeDate(str, fallback) {
+  if (!str) return fallback;
+  if (!ISO_DATE_RE.test(String(str))) return fallback;
+  const d = new Date(str);
+  return isNaN(d.getTime()) ? fallback : d;
+}
+
+// ============================================
 // GET /api/admin/finance/gst-summary
 // ============================================
 router.get('/finance/gst-summary', verifyToken, verifyAdmin, async (req, res) => {
   try {
-    const { from, to } = req.query;
-    const start = from ? new Date(from) : new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
-    const end = to ? new Date(to) : new Date();
+    const start = parseSafeDate(req.query.from, new Date(Date.now() - 90 * 24 * 60 * 60 * 1000));
+    const end   = parseSafeDate(req.query.to,   new Date());
 
     const orders = await Order.find({
       createdAt: { $gte: start, $lte: end },
@@ -596,11 +607,10 @@ router.get('/finance/gst-summary', verifyToken, verifyAdmin, async (req, res) =>
 // ============================================
 router.get('/finance/sales-register', verifyToken, verifyAdmin, async (req, res) => {
   try {
-    const { from, to, page = 1, limit = 50 } = req.query;
-    const start = from ? new Date(from) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    const end = to ? new Date(to) : new Date();
-    const parsedPage = Math.max(1, parseInt(page, 10) || 1);
-    const parsedLimit = Math.min(100, Math.max(1, parseInt(limit, 10) || 50));
+    const start = parseSafeDate(req.query.from, new Date(Date.now() - 30 * 24 * 60 * 60 * 1000));
+    const end   = parseSafeDate(req.query.to,   new Date());
+    const parsedPage = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const parsedLimit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 50));
     const skip = (parsedPage - 1) * parsedLimit;
 
     const [orders, total] = await Promise.all([
@@ -664,8 +674,12 @@ router.get('/settlements', verifyToken, verifyAdmin, async (req, res) => {
 
 router.put('/settlements/:id/freeze', verifyToken, verifyAdmin, async (req, res) => {
   try {
-    const { reason } = req.body;
-    const s = await Settlement.findByIdAndUpdate(req.params.id, { status: 'frozen', frozenReason: reason || 'Admin freeze' }, { new: true });
+    const reason = String(req.body.reason || 'Admin freeze').slice(0, 500);
+    const s = await Settlement.findByIdAndUpdate(
+      req.params.id,
+      { status: 'frozen', frozenReason: reason },
+      { new: true }
+    );
     if (!s) return res.status(404).json({ success: false, message: 'Settlement not found' });
     res.json({ success: true, message: 'Settlement frozen', data: s });
   } catch (e) {
@@ -685,7 +699,11 @@ router.put('/settlements/:id/release', verifyToken, verifyAdmin, async (req, res
 
 router.put('/settlements/:id/pay', verifyToken, verifyAdmin, async (req, res) => {
   try {
-    const { payoutReference, payoutMethod } = req.body;
+    const VALID_PAYOUT_METHODS = ['bank_transfer', 'upi', 'cheque'];
+    const payoutReference = String(req.body.payoutReference || '').slice(0, 100);
+    const payoutMethod = VALID_PAYOUT_METHODS.includes(req.body.payoutMethod)
+      ? req.body.payoutMethod
+      : 'bank_transfer';
     const s = await Settlement.findByIdAndUpdate(req.params.id,
       { status: 'paid', payoutReference, payoutMethod, payoutDate: new Date() },
       { new: true }
@@ -737,12 +755,17 @@ router.get('/tickets', verifyToken, verifyAdmin, async (req, res) => {
 
 router.post('/tickets', verifyToken, verifyAdmin, async (req, res) => {
   try {
-    const { userId, orderId, subject, description, category, priority } = req.body;
+    const { userId, orderId } = req.body;
+    const subject     = String(req.body.subject     || '').slice(0, 300);
+    const description = String(req.body.description || '').slice(0, 5000);
+    const VALID_TICKET_CATEGORIES = ['order_issue', 'payment', 'refund', 'account', 'listing', 'other'];
+    const VALID_TICKET_PRIORITIES = ['low', 'medium', 'high', 'urgent'];
+    const category = VALID_TICKET_CATEGORIES.includes(req.body.category) ? req.body.category : 'other';
+    const priority = VALID_TICKET_PRIORITIES.includes(req.body.priority) ? req.body.priority : 'medium';
     if (!subject) return res.status(400).json({ success: false, message: 'Subject required' });
     const ticket = await SupportTicket.create({
       ticketId: 'TKT-' + Date.now(),
-      userId, orderId, subject, description, category: category || 'other',
-      priority: priority || 'medium',
+      userId, orderId, subject, description, category, priority,
       messages: [{ sender: 'admin', content: description || subject, sentAt: new Date(), adminId: req.user.id }]
     });
     res.status(201).json({ success: true, data: ticket });
@@ -753,7 +776,7 @@ router.post('/tickets', verifyToken, verifyAdmin, async (req, res) => {
 
 router.put('/tickets/:id/resolve', verifyToken, verifyAdmin, async (req, res) => {
   try {
-    const { resolution } = req.body;
+    const resolution = String(req.body.resolution || 'Resolved by admin').slice(0, 2000);
     const ticket = await SupportTicket.findByIdAndUpdate(req.params.id,
       { status: 'resolved', resolution, resolvedAt: new Date() },
       { new: true }
@@ -767,7 +790,7 @@ router.put('/tickets/:id/resolve', verifyToken, verifyAdmin, async (req, res) =>
 
 router.post('/tickets/:id/message', verifyToken, verifyAdmin, async (req, res) => {
   try {
-    const { content } = req.body;
+    const content = String(req.body.content || '').slice(0, 5000);
     if (!content) return res.status(400).json({ success: false, message: 'Content required' });
     const ticket = await SupportTicket.findByIdAndUpdate(req.params.id,
       { $push: { messages: { sender: 'admin', content, sentAt: new Date(), adminId: req.user.id } }, status: 'in_progress' },

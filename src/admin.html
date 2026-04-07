@@ -402,6 +402,383 @@ body{font-family:system-ui,sans-serif}
       <div class="flex items-center gap-2 text-slate-500"><span>&#9675;</span><span>KYC verification &mdash; requires external provider</span></div>
     </div>
   </div>
+<!-- ══════════════════════════════════════════════════════════════
+     MARKETPLACE TABS — wired to Express backend /api/admin/*
+     ══════════════════════════════════════════════════════════════ -->
+
+<!-- USERS (Marketplace) -->
+<section x-show="tab==='mkt-users'" class="p-6 space-y-5" x-data="mktUsers()">
+  <div class="flex items-center gap-3 flex-wrap">
+    <div class="flex-1"><p class="text-lg font-bold text-white">User Management</p><p class="text-xs text-slate-500">Search, suspend, and review marketplace users</p></div>
+    <button @click="load()" class="bh btn">&#8635; Refresh</button>
+  </div>
+  <div class="flex gap-3 flex-wrap">
+    <input x-model="q" @input.debounce="load()" placeholder="Search name, email, phone..." class="fi flex-1 text-xs" style="max-width:300px"/>
+    <select x-model="roleFilter" @change="load()" class="fi text-xs" style="max-width:140px"><option value="">All roles</option><option value="customer">Customer</option><option value="seller">Seller</option><option value="admin">Admin</option></select>
+    <select x-model="statusFilter" @change="load()" class="fi text-xs" style="max-width:140px"><option value="">All statuses</option><option value="active">Active</option><option value="suspended">Suspended</option><option value="inactive">Inactive</option></select>
+  </div>
+  <div class="kc overflow-x-auto">
+    <p x-show="loading" class="text-slate-500 text-xs py-4 text-center">Loading…</p>
+    <table x-show="!loading" class="w-full text-xs min-w-[700px]">
+      <thead><tr class="text-slate-500 border-b border-white/5"><th class="py-2 text-left">Name</th><th class="py-2 text-left">Email</th><th class="py-2 text-left">Role</th><th class="py-2 text-left">Status</th><th class="py-2 text-right">Orders</th><th class="py-2 text-right">Spent</th><th class="py-2 text-right">Actions</th></tr></thead>
+      <tbody>
+        <template x-for="u in users" :key="u._id">
+          <tr class="tr">
+            <td class="py-2.5 font-medium" x-text="u.name||'—'"></td>
+            <td class="py-2.5 text-slate-400" x-text="u.email||'—'"></td>
+            <td class="py-2.5"><span :class="u.role==='admin'?'bg-purple-500/20 text-purple-300':u.role==='seller'?'bg-blue-500/20 text-blue-300':'bg-slate-500/20 text-slate-300'" class="badge" x-text="u.role"></span></td>
+            <td class="py-2.5"><span :class="u.status==='active'||!u.status?'bg-green-500/20 text-green-300':u.status==='suspended'?'bg-red-500/20 text-red-300':'bg-yellow-500/20 text-yellow-300'" class="badge" x-text="u.status||'active'"></span></td>
+            <td class="py-2.5 text-right" x-text="u.orderCount||0"></td>
+            <td class="py-2.5 text-right" x-text="fmt(u.totalSpent||0)"></td>
+            <td class="py-2.5 text-right">
+              <div class="relative inline-block" x-data="{o:false}">
+                <button @click="o=!o" class="bh btn text-xs">Actions &#9660;</button>
+                <div x-show="o" @click.away="o=false" class="absolute right-0 top-8 bg-[#0b1020] border border-white/10 rounded-xl shadow-xl z-20 w-48 py-1">
+                  <button @click="setStatus(u._id,'active');o=false" class="w-full text-left px-4 py-2 text-xs text-green-400 hover:bg-white/5">&#10003; Activate</button>
+                  <button @click="setStatus(u._id,'suspended');o=false" class="w-full text-left px-4 py-2 text-xs text-red-400 hover:bg-red-500/10">&#9888; Suspend</button>
+                </div>
+              </div>
+            </td>
+          </tr>
+        </template>
+        <tr x-show="!loading&&users.length===0"><td colspan="7" class="py-8 text-center text-slate-600">No users found. Try a different filter.</td></tr>
+      </tbody>
+    </table>
+    <div class="flex items-center justify-between mt-3 text-xs text-slate-500 border-t border-white/5 pt-3">
+      <span x-text="pagination.total+' total'"></span>
+      <div class="flex gap-2">
+        <button @click="page=Math.max(1,page-1);load()" :disabled="page<=1" class="bh btn text-xs disabled:opacity-40">&#8592; Prev</button>
+        <span x-text="'Page '+page+'/'+pagination.pages"></span>
+        <button @click="page=Math.min(pagination.pages,page+1);load()" :disabled="page>=pagination.pages" class="bh btn text-xs disabled:opacity-40">Next &#8594;</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SELLERS (Marketplace) -->
+<section x-show="tab==='mkt-sellers'" class="p-6 space-y-5" x-data="mktSellers()">
+  <div class="flex items-center gap-3 flex-wrap">
+    <div class="flex-1"><p class="text-lg font-bold text-white">Seller Management</p><p class="text-xs text-slate-500">Approve, reject, suspend seller applications</p></div>
+    <button @click="load()" class="bh btn">&#8635; Refresh</button>
+  </div>
+  <div class="flex gap-3 flex-wrap">
+    <select x-model="statusFilter" @change="load()" class="fi text-xs" style="max-width:160px"><option value="">All statuses</option><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option><option value="suspended">Suspended</option></select>
+  </div>
+  <div class="kc overflow-x-auto">
+    <p x-show="loading" class="text-slate-500 text-xs py-4 text-center">Loading…</p>
+    <table x-show="!loading" class="w-full text-xs min-w-[750px]">
+      <thead><tr class="text-slate-500 border-b border-white/5"><th class="py-2 text-left">Name</th><th class="py-2 text-left">Business</th><th class="py-2 text-left">Status</th><th class="py-2 text-right">Products</th><th class="py-2 text-right">GMV</th><th class="py-2 text-right">Actions</th></tr></thead>
+      <tbody>
+        <template x-for="s in sellers" :key="s._id">
+          <tr class="tr">
+            <td class="py-2.5 font-medium" x-text="s.name||'—'"></td>
+            <td class="py-2.5 text-slate-400" x-text="s.seller?.businessName||'—'"></td>
+            <td class="py-2.5">
+              <span :class="s.seller?.status==='approved'?'bg-green-500/20 text-green-300':s.seller?.status==='pending'?'bg-yellow-500/20 text-yellow-300':s.seller?.status==='rejected'?'bg-red-500/20 text-red-300':'bg-slate-500/20 text-slate-300'" class="badge" x-text="s.seller?.status||'pending'"></span>
+            </td>
+            <td class="py-2.5 text-right" x-text="s.productCount||0"></td>
+            <td class="py-2.5 text-right" x-text="fmt(s.revenue||0)"></td>
+            <td class="py-2.5 text-right">
+              <div class="flex justify-end gap-1">
+                <button x-show="s.seller?.status==='pending'" @click="approve(s._id)" class="bg btn text-xs">&#10003; Approve</button>
+                <button x-show="s.seller?.status==='pending'" @click="reject(s._id)" class="br btn text-xs">&#10005; Reject</button>
+                <button x-show="s.seller?.status==='approved'" @click="suspend(s._id)" class="br btn text-xs">&#9888; Suspend</button>
+                <button x-show="s.seller?.status==='suspended'" @click="approve(s._id)" class="bh btn text-xs">Reactivate</button>
+              </div>
+            </td>
+          </tr>
+        </template>
+        <tr x-show="!loading&&sellers.length===0"><td colspan="6" class="py-8 text-center text-slate-600">No sellers found.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ORDERS (Marketplace) -->
+<section x-show="tab==='mkt-orders'" class="p-6 space-y-5" x-data="mktOrders()">
+  <div class="flex items-center gap-3 flex-wrap">
+    <div class="flex-1"><p class="text-lg font-bold text-white">Order Control Centre</p><p class="text-xs text-slate-500">View, update, refund, and manage all marketplace orders</p></div>
+    <button @click="load()" class="bh btn">&#8635; Refresh</button>
+  </div>
+  <div class="flex gap-3 flex-wrap">
+    <input x-model="q" @input.debounce="load()" placeholder="Search order ID, customer..." class="fi flex-1 text-xs" style="max-width:280px"/>
+    <select x-model="statusFilter" @change="load()" class="fi text-xs" style="max-width:160px"><option value="">All statuses</option><option value="pending">Pending</option><option value="confirmed">Confirmed</option><option value="processing">Processing</option><option value="shipped">Shipped</option><option value="delivered">Delivered</option><option value="cancelled">Cancelled</option><option value="returned">Returned</option></select>
+  </div>
+  <div class="kc overflow-x-auto">
+    <p x-show="loading" class="text-slate-500 text-xs py-4 text-center">Loading…</p>
+    <table x-show="!loading" class="w-full text-xs min-w-[820px]">
+      <thead><tr class="text-slate-500 border-b border-white/5"><th class="py-2 text-left">Order ID</th><th class="py-2 text-left">Customer</th><th class="py-2 text-left">Status</th><th class="py-2 text-left">Payment</th><th class="py-2 text-right">Total</th><th class="py-2 text-right">Date</th><th class="py-2 text-right">Actions</th></tr></thead>
+      <tbody>
+        <template x-for="o in orders" :key="o._id">
+          <tr class="tr">
+            <td class="py-2.5 font-mono text-[#22c55e] text-[10px]" x-text="o.orderId||'—'"></td>
+            <td class="py-2.5" x-text="o.customerName||o.userId?.name||'—'"></td>
+            <td class="py-2.5">
+              <span :class="o.status==='delivered'?'bg-green-500/20 text-green-300':o.status==='cancelled'?'bg-red-500/20 text-red-300':o.status==='shipped'?'bg-blue-500/20 text-blue-300':'bg-yellow-500/20 text-yellow-300'" class="badge" x-text="o.status"></span>
+            </td>
+            <td class="py-2.5"><span :class="o.payment?.status==='completed'?'bg-green-500/20 text-green-300':'bg-red-500/20 text-red-300'" class="badge" x-text="o.payment?.status||'pending'"></span></td>
+            <td class="py-2.5 text-right font-semibold" x-text="fmt(o.total)"></td>
+            <td class="py-2.5 text-right text-slate-400" x-text="new Date(o.createdAt).toLocaleDateString('en-IN')"></td>
+            <td class="py-2.5 text-right">
+              <div class="relative inline-block" x-data="{o2:false,newStatus:''}">
+                <button @click="o2=!o2" class="bh btn text-xs">Update &#9660;</button>
+                <div x-show="o2" @click.away="o2=false" class="absolute right-0 top-8 bg-[#0b1020] border border-white/10 rounded-xl shadow-xl z-20 w-48 py-1">
+                  <template x-for="st in ['confirmed','processing','shipped','delivered','cancelled']" :key="st">
+                    <button @click="updateStatus(o._id,st);o2=false" class="w-full text-left px-4 py-2 text-xs text-slate-300 hover:bg-white/5 capitalize" x-text="st"></button>
+                  </template>
+                  <div class="border-t border-white/5 my-1"></div>
+                  <button @click="triggerRefund(o._id);o2=false" class="w-full text-left px-4 py-2 text-xs text-yellow-400 hover:bg-yellow-500/10">&#8617; Request Refund</button>
+                </div>
+              </div>
+            </td>
+          </tr>
+        </template>
+        <tr x-show="!loading&&orders.length===0"><td colspan="7" class="py-8 text-center text-slate-600">No orders found.</td></tr>
+      </tbody>
+    </table>
+    <div class="flex items-center justify-between mt-3 text-xs text-slate-500 border-t border-white/5 pt-3">
+      <span x-text="pagination.total+' total orders'"></span>
+      <div class="flex gap-2">
+        <button @click="page=Math.max(1,page-1);load()" :disabled="page<=1" class="bh btn text-xs disabled:opacity-40">&#8592;</button>
+        <span x-text="'Page '+page+'/'+pagination.pages"></span>
+        <button @click="page=Math.min(pagination.pages,page+1);load()" :disabled="page>=pagination.pages" class="bh btn text-xs disabled:opacity-40">&#8594;</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- GST REPORTS -->
+<section x-show="tab==='gst'" class="p-6 space-y-5" x-data="gstReports()">
+  <div class="flex items-center gap-3 flex-wrap">
+    <div class="flex-1"><p class="text-lg font-bold text-white">GST Bookkeeping</p><p class="text-xs text-slate-500">Tax summary, sales register, and exportable reports</p></div>
+    <button @click="load()" class="bh btn">&#8635; Refresh</button>
+  </div>
+  <!-- Date range -->
+  <div class="flex gap-3 flex-wrap items-end">
+    <div><label class="text-[10px] text-slate-500 block mb-1">From</label><input type="date" x-model="from" class="fi text-xs" style="max-width:160px"/></div>
+    <div><label class="text-[10px] text-slate-500 block mb-1">To</label><input type="date" x-model="to" class="fi text-xs" style="max-width:160px"/></div>
+    <button @click="load()" class="bg btn">Apply</button>
+  </div>
+  <!-- Summary cards -->
+  <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div class="kc"><p class="text-xs text-slate-500 mb-1">Taxable Value</p><p class="text-xl font-bold text-white" x-text="fmt(summary.totalTaxable||0)"></p></div>
+    <div class="kc"><p class="text-xs text-slate-500 mb-1">Total GST</p><p class="text-xl font-bold text-[#facc6b]" x-text="fmt(summary.totalGst||0)"></p></div>
+    <div class="kc"><p class="text-xs text-slate-500 mb-1">CGST + SGST</p><p class="text-xl font-bold text-[#22c55e]" x-text="fmt((summary.cgst||0)+(summary.sgst||0))"></p><p class="text-[10px] text-slate-500 mt-1">Intra-state</p></div>
+    <div class="kc"><p class="text-xs text-slate-500 mb-1">IGST</p><p class="text-xl font-bold text-blue-400" x-text="fmt(summary.igst||0)"></p><p class="text-[10px] text-slate-500 mt-1">Inter-state</p></div>
+  </div>
+  <!-- Sub-tabs -->
+  <div class="flex gap-2">
+    <button @click="subTab='summary'" :class="subTab==='summary'?'bg btn':'bh btn'" class="text-xs">GST Summary</button>
+    <button @click="subTab='register';loadRegister()" :class="subTab==='register'?'bg btn':'bh btn'" class="text-xs">Sales Register</button>
+  </div>
+  <!-- Summary tab -->
+  <div x-show="subTab==='summary'" class="kc space-y-3">
+    <p class="text-sm font-semibold text-white">GST Return Summary</p>
+    <div class="grid grid-cols-2 gap-4 text-xs">
+      <div class="space-y-2">
+        <div class="flex justify-between py-1.5 border-b border-white/5"><span class="text-slate-400">Total Transactions</span><span class="font-semibold" x-text="summary.orderCount||0"></span></div>
+        <div class="flex justify-between py-1.5 border-b border-white/5"><span class="text-slate-400">Taxable Value</span><span class="font-semibold text-white" x-text="fmt(summary.totalTaxable||0)"></span></div>
+        <div class="flex justify-between py-1.5 border-b border-white/5"><span class="text-slate-400">CGST (9%)</span><span class="font-semibold text-[#22c55e]" x-text="fmt(summary.cgst||0)"></span></div>
+        <div class="flex justify-between py-1.5 border-b border-white/5"><span class="text-slate-400">SGST (9%)</span><span class="font-semibold text-[#22c55e]" x-text="fmt(summary.sgst||0)"></span></div>
+        <div class="flex justify-between py-1.5 border-b border-white/5"><span class="text-slate-400">IGST</span><span class="font-semibold text-blue-400" x-text="fmt(summary.igst||0)"></span></div>
+        <div class="flex justify-between py-2 font-bold"><span class="text-white">Total Tax Liability</span><span class="text-[#facc6b]" x-text="fmt(summary.totalGst||0)"></span></div>
+      </div>
+      <div class="kc bg-[#060814]">
+        <p class="text-xs text-slate-400 mb-3">Note on GST Compliance</p>
+        <p class="text-[11px] text-slate-500 leading-relaxed">GST registration and e-invoicing requirements apply based on annual aggregate turnover thresholds as per the GST Act, 2017. Consult your CA for GSTR-1, GSTR-3B, and e-invoice (IRN/QR) compliance if applicable. CGST/SGST applies for intra-state; IGST for inter-state transactions.</p>
+      </div>
+    </div>
+  </div>
+  <!-- Sales Register tab -->
+  <div x-show="subTab==='register'" class="kc overflow-x-auto">
+    <p x-show="regLoading" class="text-slate-500 text-xs py-4 text-center">Loading register…</p>
+    <table x-show="!regLoading" class="w-full text-xs min-w-[860px]">
+      <thead><tr class="text-slate-500 border-b border-white/5"><th class="py-2 text-left">Invoice/Order</th><th class="py-2 text-left">Date</th><th class="py-2 text-left">Customer</th><th class="py-2 text-right">Taxable</th><th class="py-2 text-right">CGST</th><th class="py-2 text-right">SGST</th><th class="py-2 text-right">IGST</th><th class="py-2 text-right">Total</th></tr></thead>
+      <tbody>
+        <template x-for="r in register" :key="r.orderId">
+          <tr class="tr">
+            <td class="py-2 font-mono text-[10px] text-[#22c55e]" x-text="r.orderId||'—'"></td>
+            <td class="py-2" x-text="new Date(r.date).toLocaleDateString('en-IN')"></td>
+            <td class="py-2" x-text="r.customerName||'—'"></td>
+            <td class="py-2 text-right" x-text="fmt(r.taxableValue)"></td>
+            <td class="py-2 text-right text-slate-400" x-text="fmt(r.cgst)"></td>
+            <td class="py-2 text-right text-slate-400" x-text="fmt(r.sgst)"></td>
+            <td class="py-2 text-right text-slate-400" x-text="fmt(r.igst)"></td>
+            <td class="py-2 text-right font-semibold" x-text="fmt(r.total)"></td>
+          </tr>
+        </template>
+        <tr x-show="!regLoading&&register.length===0"><td colspan="8" class="py-8 text-center text-slate-600">No records for the selected period.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- SETTLEMENTS -->
+<section x-show="tab==='settlements'" class="p-6 space-y-5" x-data="mktSettlements()">
+  <div class="flex items-center gap-3 flex-wrap">
+    <div class="flex-1"><p class="text-lg font-bold text-white">Settlements &amp; Payouts</p><p class="text-xs text-slate-500">Manage vendor settlements — freeze, release, mark paid</p></div>
+    <button @click="load()" class="bh btn">&#8635; Refresh</button>
+  </div>
+  <div class="flex gap-3">
+    <select x-model="statusFilter" @change="load()" class="fi text-xs" style="max-width:160px"><option value="">All statuses</option><option value="pending">Pending</option><option value="paid">Paid</option><option value="frozen">Frozen</option><option value="processing">Processing</option></select>
+  </div>
+  <div class="kc overflow-x-auto">
+    <p x-show="loading" class="text-slate-500 text-xs py-4 text-center">Loading…</p>
+    <table x-show="!loading" class="w-full text-xs min-w-[780px]">
+      <thead><tr class="text-slate-500 border-b border-white/5"><th class="py-2 text-left">Settlement ID</th><th class="py-2 text-left">Seller</th><th class="py-2 text-left">Status</th><th class="py-2 text-right">Gross</th><th class="py-2 text-right">Commission</th><th class="py-2 text-right">Net Payable</th><th class="py-2 text-right">Actions</th></tr></thead>
+      <tbody>
+        <template x-for="s in settlements" :key="s._id">
+          <tr class="tr">
+            <td class="py-2.5 font-mono text-[10px] text-slate-400" x-text="s.settlementId||'—'"></td>
+            <td class="py-2.5 font-medium" x-text="s.sellerId?.name||'—'"></td>
+            <td class="py-2.5"><span :class="s.status==='paid'?'bg-green-500/20 text-green-300':s.status==='frozen'?'bg-red-500/20 text-red-300':s.status==='pending'?'bg-yellow-500/20 text-yellow-300':'bg-slate-500/20 text-slate-300'" class="badge" x-text="s.status"></span></td>
+            <td class="py-2.5 text-right" x-text="fmt(s.grossAmount)"></td>
+            <td class="py-2.5 text-right text-slate-400" x-text="fmt(s.commissionAmount)"></td>
+            <td class="py-2.5 text-right font-bold text-[#22c55e]" x-text="fmt(s.netPayable)"></td>
+            <td class="py-2.5 text-right">
+              <div class="flex justify-end gap-1">
+                <button x-show="s.status==='pending'" @click="pay(s._id)" class="bg btn text-xs">&#128176; Pay</button>
+                <button x-show="s.status==='pending'||s.status==='processing'" @click="freeze(s._id)" class="br btn text-xs">&#10006; Freeze</button>
+                <button x-show="s.status==='frozen'" @click="release(s._id)" class="bh btn text-xs">&#10003; Release</button>
+              </div>
+            </td>
+          </tr>
+        </template>
+        <tr x-show="!loading&&settlements.length===0"><td colspan="7" class="py-8 text-center text-slate-600">No settlements yet. They are created automatically after orders are delivered.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- SUPPORT TICKETS -->
+<section x-show="tab==='support'" class="p-6 space-y-5" x-data="mktSupport()">
+  <div class="flex items-center gap-3 flex-wrap">
+    <div class="flex-1"><p class="text-lg font-bold text-white">Support &amp; Disputes</p><p class="text-xs text-slate-500">Manage customer and seller support tickets</p></div>
+    <button @click="showNew=true" class="bg btn">+ New Ticket</button>
+    <button @click="load()" class="bh btn">&#8635;</button>
+  </div>
+  <!-- New ticket form -->
+  <div x-show="showNew" class="kc space-y-3">
+    <p class="text-sm font-semibold text-white">Create Support Ticket</p>
+    <input x-model="form.subject" placeholder="Subject *" class="fi text-xs"/>
+    <textarea x-model="form.description" placeholder="Describe the issue..." class="fi text-xs h-24 resize-none"></textarea>
+    <div class="flex gap-3">
+      <select x-model="form.category" class="fi text-xs"><option value="order_issue">Order Issue</option><option value="payment">Payment</option><option value="refund">Refund</option><option value="account">Account</option><option value="listing">Listing</option><option value="other">Other</option></select>
+      <select x-model="form.priority" class="fi text-xs"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="urgent">Urgent</option></select>
+    </div>
+    <div class="flex gap-2">
+      <button @click="createTicket()" class="bg btn">Create</button>
+      <button @click="showNew=false;form={subject:'',description:'',category:'other',priority:'medium'}" class="bh btn">Cancel</button>
+    </div>
+  </div>
+  <div class="flex gap-3">
+    <select x-model="statusFilter" @change="load()" class="fi text-xs" style="max-width:160px"><option value="">All statuses</option><option value="open">Open</option><option value="in_progress">In Progress</option><option value="resolved">Resolved</option><option value="closed">Closed</option></select>
+    <select x-model="priorityFilter" @change="load()" class="fi text-xs" style="max-width:140px"><option value="">All priorities</option><option value="urgent">Urgent</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select>
+  </div>
+  <div class="kc overflow-x-auto">
+    <p x-show="loading" class="text-slate-500 text-xs py-4 text-center">Loading…</p>
+    <table x-show="!loading" class="w-full text-xs min-w-[720px]">
+      <thead><tr class="text-slate-500 border-b border-white/5"><th class="py-2 text-left">Ticket</th><th class="py-2 text-left">Subject</th><th class="py-2 text-left">User</th><th class="py-2 text-left">Priority</th><th class="py-2 text-left">Status</th><th class="py-2 text-right">Created</th><th class="py-2 text-right">Actions</th></tr></thead>
+      <tbody>
+        <template x-for="t in tickets" :key="t._id">
+          <tr class="tr">
+            <td class="py-2.5 font-mono text-[10px] text-slate-400" x-text="t.ticketId||'—'"></td>
+            <td class="py-2.5 max-w-[200px] truncate" x-text="t.subject"></td>
+            <td class="py-2.5 text-slate-400" x-text="t.userId?.name||'Admin'"></td>
+            <td class="py-2.5"><span :class="t.priority==='urgent'?'bg-red-500/20 text-red-300':t.priority==='high'?'bg-orange-500/20 text-orange-300':t.priority==='medium'?'bg-yellow-500/20 text-yellow-300':'bg-slate-500/20 text-slate-300'" class="badge" x-text="t.priority"></span></td>
+            <td class="py-2.5"><span :class="t.status==='resolved'||t.status==='closed'?'bg-green-500/20 text-green-300':t.status==='open'?'bg-blue-500/20 text-blue-300':'bg-yellow-500/20 text-yellow-300'" class="badge" x-text="t.status"></span></td>
+            <td class="py-2.5 text-right text-slate-400" x-text="new Date(t.createdAt).toLocaleDateString('en-IN')"></td>
+            <td class="py-2.5 text-right">
+              <button x-show="t.status!=='resolved'&&t.status!=='closed'" @click="resolve(t._id)" class="bg btn text-xs">&#10003; Resolve</button>
+            </td>
+          </tr>
+        </template>
+        <tr x-show="!loading&&tickets.length===0"><td colspan="7" class="py-8 text-center text-slate-600">No tickets found.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- DOCUMENTS -->
+<section x-show="tab==='documents'" class="p-6 space-y-5" x-data="mktDocuments()">
+  <div class="flex items-center gap-3 flex-wrap">
+    <div class="flex-1"><p class="text-lg font-bold text-white">Document Generator</p><p class="text-xs text-slate-500">Generate invoices, receipts, credit notes, settlement statements</p></div>
+    <button @click="load()" class="bh btn">&#8635; Refresh</button>
+  </div>
+  <!-- Generate form -->
+  <div class="kc">
+    <p class="text-sm font-semibold text-white mb-3">Generate New Document</p>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="space-y-3">
+        <div><label class="text-[10px] text-slate-400 mb-1 block">Document Type *</label>
+          <select x-model="gen.type" class="fi text-xs"><option value="">Select type…</option><option value="invoice">Tax Invoice</option><option value="receipt">Receipt</option><option value="credit_note">Credit Note</option><option value="debit_note">Debit Note</option><option value="order_confirmation">Order Confirmation</option><option value="cancellation_receipt">Cancellation Receipt</option><option value="refund_receipt">Refund Receipt</option><option value="settlement_statement">Settlement Statement</option><option value="payout_summary">Payout Summary</option><option value="commission_statement">Commission Statement</option></select>
+        </div>
+        <div><label class="text-[10px] text-slate-400 mb-1 block">Customer Name</label><input x-model="gen.data.customerName" placeholder="Customer Name" class="fi text-xs"/></div>
+        <div><label class="text-[10px] text-slate-400 mb-1 block">Order / Reference ID</label><input x-model="gen.data.referenceId" placeholder="ORD-123456" class="fi text-xs"/></div>
+        <div><label class="text-[10px] text-slate-400 mb-1 block">Total Amount (₹)</label><input x-model.number="gen.data.total" type="number" placeholder="0.00" class="fi text-xs"/></div>
+      </div>
+      <div class="kc bg-[#060814]">
+        <p class="text-xs text-slate-400 mb-2">Document Fields</p>
+        <p class="text-[11px] text-slate-500 leading-relaxed">The generated document will include platform name, GSTIN (when configured), document number, issue date, customer details, line items, GST breakdown, payment info, and compliance notes. Documents are stored in the system and can be re-generated or emailed.</p>
+      </div>
+    </div>
+    <button @click="generate()" :disabled="!gen.type||generating" class="mt-4 bg btn disabled:opacity-50">
+      <span x-show="generating">Generating…</span><span x-show="!generating">&#10003; Generate Document</span>
+    </button>
+  </div>
+  <!-- Document history -->
+  <div class="kc overflow-x-auto">
+    <p class="text-sm font-semibold text-white mb-3">Document History</p>
+    <p x-show="loading" class="text-slate-500 text-xs py-4 text-center">Loading…</p>
+    <table x-show="!loading" class="w-full text-xs min-w-[680px]">
+      <thead><tr class="text-slate-500 border-b border-white/5"><th class="py-2 text-left">Document ID</th><th class="py-2 text-left">Type</th><th class="py-2 text-left">For</th><th class="py-2 text-left">Status</th><th class="py-2 text-right">Generated</th><th class="py-2 text-right">Actions</th></tr></thead>
+      <tbody>
+        <template x-for="d in docs" :key="d._id">
+          <tr class="tr">
+            <td class="py-2.5 font-mono text-[10px] text-[#22c55e]" x-text="d.documentId||'—'"></td>
+            <td class="py-2.5 capitalize" x-text="(d.type||'—').replace(/_/g,' ')"></td>
+            <td class="py-2.5 text-slate-400" x-text="d.generatedFor?.name||d.data?.customerName||'—'"></td>
+            <td class="py-2.5"><span :class="d.status==='final'?'bg-green-500/20 text-green-300':'bg-slate-500/20 text-slate-300'" class="badge" x-text="d.status"></span></td>
+            <td class="py-2.5 text-right text-slate-400" x-text="new Date(d.createdAt).toLocaleDateString('en-IN')"></td>
+            <td class="py-2.5 text-right">
+              <button @click="viewDoc(d._id)" class="bh btn text-xs">&#128196; View</button>
+            </td>
+          </tr>
+        </template>
+        <tr x-show="!loading&&docs.length===0"><td colspan="6" class="py-8 text-center text-slate-600">No documents generated yet.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- PLATFORM SETTINGS -->
+<section x-show="tab==='mkt-settings'" class="p-6 space-y-5 max-w-2xl" x-data="mktSettings()">
+  <div class="flex items-center justify-between">
+    <div><p class="text-lg font-bold text-white">Platform Settings</p><p class="text-xs text-slate-500">Configure commission, GST, shipping, and feature flags</p></div>
+    <button @click="save()" :disabled="saving" class="bg btn disabled:opacity-50"><span x-show="saving">Saving…</span><span x-show="!saving">&#10003; Save</span></button>
+  </div>
+  <div class="kc space-y-4" x-show="!loading">
+    <p class="text-xs text-slate-400 uppercase tracking-widest font-semibold">Financial Settings</p>
+    <div class="grid grid-cols-2 gap-4 text-xs">
+      <div><label class="text-[10px] text-slate-400 mb-1 block">Commission Rate (%)</label><input x-model.number="settings.commissionRate" type="number" min="0" max="50" class="fi text-xs"/></div>
+      <div><label class="text-[10px] text-slate-400 mb-1 block">Default GST Rate (%)</label><input x-model.number="settings.gstRate" type="number" min="0" max="28" class="fi text-xs"/></div>
+      <div><label class="text-[10px] text-slate-400 mb-1 block">Free Shipping Above (₹)</label><input x-model.number="settings.freeShippingThreshold" type="number" class="fi text-xs"/></div>
+      <div><label class="text-[10px] text-slate-400 mb-1 block">Default Shipping Charge (₹)</label><input x-model.number="settings.defaultShipping" type="number" class="fi text-xs"/></div>
+    </div>
+    <div class="border-t border-white/5 pt-3"></div>
+    <p class="text-xs text-slate-400 uppercase tracking-widest font-semibold">OTP Settings</p>
+    <div class="grid grid-cols-2 gap-4 text-xs">
+      <div><label class="text-[10px] text-slate-400 mb-1 block">OTP Expiry (seconds)</label><input x-model.number="settings.otpExpiry" type="number" class="fi text-xs"/></div>
+      <div><label class="text-[10px] text-slate-400 mb-1 block">Max OTP Attempts</label><input x-model.number="settings.maxOtpAttempts" type="number" class="fi text-xs"/></div>
+    </div>
+    <div class="border-t border-white/5 pt-3"></div>
+    <p class="text-xs text-slate-400 uppercase tracking-widest font-semibold">Feature Flags</p>
+    <div class="space-y-3 text-xs">
+      <label class="flex items-center gap-3 cursor-pointer"><input type="checkbox" x-model="settings.reviewModerationEnabled" class="accent-[#22c55e] w-4 h-4"/><span class="text-slate-300">Review moderation before publish</span></label>
+      <label class="flex items-center gap-3 cursor-pointer"><input type="checkbox" x-model="settings.listingModerationEnabled" class="accent-[#22c55e] w-4 h-4"/><span class="text-slate-300">Listing moderation before publish</span></label>
+      <label class="flex items-center gap-3 cursor-pointer"><input type="checkbox" x-model="settings.maintenanceMode" class="accent-red-500 w-4 h-4"/><span class="text-slate-300">Maintenance mode (blocks frontend)</span></label>
+    </div>
+  </div>
 </section>
 
 </main>
@@ -411,6 +788,8 @@ body{font-family:system-ui,sans-serif}
 
 <script>
 const API_BASE = localStorage.getItem('ev_admin_api') || 'http://localhost:3001/api';
+// Marketplace backend (Express/MongoDB)
+const MKT_API = localStorage.getItem('ev_mkt_api') || 'http://localhost:5000/api';
 const GST_SLAB = {'Natural Products':5,'Worksheets':0,'Books':0,'Stationery':12,'Electronics':18,'Fashion':12,'Home & Kitchen':18,'Health & Beauty':18,'Toys & Games':28,'Art & Crafts':12,'Sports & Outdoors':18,'Other':18};
 
 function showToast(msg, type='success') {
@@ -454,8 +833,17 @@ function adminApp() {
       {id:'pos', icon:'&#128179;', label:'POS & Billing'},
       {id:'orders', icon:'&#128203;', label:'Orders & GST'},
       {id:'research', icon:'&#128300;', label:'Growth Lab'},
+      // Marketplace-connected sections
+      {id:'mkt-users', icon:'&#128100;', label:'Users'},
+      {id:'mkt-sellers', icon:'&#127978;', label:'Sellers'},
+      {id:'mkt-orders', icon:'&#128666;', label:'Marketplace Orders'},
+      {id:'gst', icon:'&#128196;', label:'GST Reports'},
+      {id:'settlements', icon:'&#128176;', label:'Settlements'},
+      {id:'support', icon:'&#127775;', label:'Support'},
+      {id:'documents', icon:'&#128195;', label:'Documents'},
+      {id:'mkt-settings', icon:'&#9881;', label:'Mkt Settings'},
       {id:'join', icon:'&#128221;', label:'Partner Form'},
-      {id:'settings', icon:'&#9881;', label:'Settings'},
+      {id:'settings', icon:'&#128274;', label:'Data Settings'},
     ],
 
     fmt(n) { return '&#x20B9;' + Number(n||0).toLocaleString('en-IN'); },
@@ -662,6 +1050,196 @@ function joinForm() {
       const r=await callApi('POST','/partners_leads',{...this.form,status:'pending',submittedAt:new Date().toISOString(),source:'Admin Form Preview'});
       this.sav=false;
       if(r.ok){this.step=3;showToast('Lead submitted!');}else showToast('Failed. Is JSON Data Service running?','error');
+    }
+  };
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Marketplace API helpers (Express backend)
+// ────────────────────────────────────────────────────────────────────────────
+const mktToken = () => localStorage.getItem('ev_admin_token') || '';
+async function mktApi(method, path, body) {
+  try {
+    const r = await fetch(MKT_API + path, {
+      method,
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + mktToken() },
+      body: body ? JSON.stringify(body) : undefined
+    });
+    return await r.json();
+  } catch { return { success: false, data: null }; }
+}
+const mktFmt = n => '₹' + Number(n||0).toLocaleString('en-IN');
+
+function mktUsers() {
+  return {
+    users: [], loading: false, q: '', roleFilter: '', statusFilter: '', page: 1,
+    pagination: { total: 0, pages: 1 }, fmt: mktFmt,
+    async load() {
+      this.loading = true;
+      const p = new URLSearchParams({ page: this.page, limit: 20 });
+      if (this.q) p.set('search', this.q);
+      if (this.roleFilter) p.set('role', this.roleFilter);
+      if (this.statusFilter) p.set('status', this.statusFilter);
+      const r = await mktApi('GET', '/admin/users?' + p);
+      this.users = r.data || []; this.pagination = r.pagination || { total: 0, pages: 1 };
+      this.loading = false;
+    },
+    async setStatus(id, status) {
+      const r = await mktApi('PUT', '/admin/users/' + id + '/status', { status });
+      if (r.success) { showToast('User ' + status); await this.load(); }
+      else showToast(r.message || 'Failed', 'error');
+    },
+    init() { this.load(); }
+  };
+}
+
+function mktSellers() {
+  return {
+    sellers: [], loading: false, statusFilter: '', fmt: mktFmt,
+    async load() {
+      this.loading = true;
+      const p = new URLSearchParams({ page: 1, limit: 50 });
+      if (this.statusFilter) p.set('status', this.statusFilter);
+      const r = await mktApi('GET', '/admin/sellers?' + p);
+      this.sellers = r.data || []; this.loading = false;
+    },
+    async approve(id) { const r = await mktApi('PUT', '/admin/sellers/'+id+'/approve'); if(r.success){showToast('Seller approved ✓');await this.load();}else showToast(r.message||'Failed','error'); },
+    async reject(id)  { const r = await mktApi('PUT', '/admin/sellers/'+id+'/reject',{reason:'Rejected by admin'}); if(r.success){showToast('Seller rejected','warning');await this.load();}else showToast(r.message||'Failed','error'); },
+    async suspend(id) { const r = await mktApi('PUT', '/admin/sellers/'+id+'/suspend'); if(r.success){showToast('Seller suspended','warning');await this.load();}else showToast(r.message||'Failed','error'); },
+    init() { this.load(); }
+  };
+}
+
+function mktOrders() {
+  return {
+    orders: [], loading: false, q: '', statusFilter: '', page: 1,
+    pagination: { total: 0, pages: 1 }, fmt: mktFmt,
+    async load() {
+      this.loading = true;
+      const p = new URLSearchParams({ page: this.page, limit: 20 });
+      if (this.q) p.set('search', this.q);
+      if (this.statusFilter) p.set('status', this.statusFilter);
+      const r = await mktApi('GET', '/admin/orders?' + p);
+      this.orders = r.data || []; this.pagination = r.pagination || { total: 0, pages: 1 };
+      this.loading = false;
+    },
+    async updateStatus(id, status) {
+      const r = await mktApi('PUT', '/admin/orders/'+id+'/status', { status });
+      if (r.success) { showToast('Order → ' + status); await this.load(); }
+      else showToast(r.message||'Failed','error');
+    },
+    async triggerRefund(id) {
+      const r = await mktApi('PUT', '/admin/orders/'+id+'/refund', { status:'approved', reason:'Admin triggered refund' });
+      if (r.success) { showToast('Refund initiated'); await this.load(); }
+      else showToast(r.message||'Failed','error');
+    },
+    init() { this.load(); }
+  };
+}
+
+function gstReports() {
+  return {
+    summary: {}, register: [], subTab: 'summary', loading: false, regLoading: false,
+    from: new Date(Date.now()-90*24*60*60*1000).toISOString().slice(0,10),
+    to: new Date().toISOString().slice(0,10), fmt: mktFmt,
+    async load() {
+      this.loading = true;
+      const r = await mktApi('GET', '/admin/finance/gst-summary?from='+this.from+'&to='+this.to);
+      this.summary = r.data || {}; this.loading = false;
+    },
+    async loadRegister() {
+      this.regLoading = true;
+      const r = await mktApi('GET', '/admin/finance/sales-register?from='+this.from+'&to='+this.to+'&limit=100');
+      this.register = r.data || []; this.regLoading = false;
+    },
+    init() { this.load(); }
+  };
+}
+
+function mktSettlements() {
+  return {
+    settlements: [], loading: false, statusFilter: '', fmt: mktFmt,
+    async load() {
+      this.loading = true;
+      const p = new URLSearchParams({ limit: 50 });
+      if (this.statusFilter) p.set('status', this.statusFilter);
+      const r = await mktApi('GET', '/admin/settlements?' + p);
+      this.settlements = r.data || []; this.loading = false;
+    },
+    async freeze(id) { const r = await mktApi('PUT','/admin/settlements/'+id+'/freeze',{reason:'Admin freeze'}); if(r.success){showToast('Frozen','warning');await this.load();}else showToast(r.message||'Failed','error'); },
+    async release(id) { const r = await mktApi('PUT','/admin/settlements/'+id+'/release'); if(r.success){showToast('Released');await this.load();}else showToast(r.message||'Failed','error'); },
+    async pay(id) {
+      const ref = prompt('Enter payout reference (UTR/transaction ID):');
+      if (!ref) return;
+      const r = await mktApi('PUT','/admin/settlements/'+id+'/pay',{payoutReference:ref,payoutMethod:'bank_transfer'});
+      if(r.success){showToast('Marked paid ✓');await this.load();}else showToast(r.message||'Failed','error');
+    },
+    init() { this.load(); }
+  };
+}
+
+function mktSupport() {
+  return {
+    tickets: [], loading: false, statusFilter: '', priorityFilter: '', showNew: false,
+    form: { subject: '', description: '', category: 'other', priority: 'medium' },
+    async load() {
+      this.loading = true;
+      const p = new URLSearchParams({ limit: 50 });
+      if (this.statusFilter) p.set('status', this.statusFilter);
+      if (this.priorityFilter) p.set('priority', this.priorityFilter);
+      const r = await mktApi('GET', '/admin/tickets?' + p);
+      this.tickets = r.data || []; this.loading = false;
+    },
+    async createTicket() {
+      if (!this.form.subject) return showToast('Subject required','error');
+      const r = await mktApi('POST', '/admin/tickets', this.form);
+      if (r.success) { showToast('Ticket created'); this.showNew=false; this.form={subject:'',description:'',category:'other',priority:'medium'}; await this.load(); }
+      else showToast(r.message||'Failed','error');
+    },
+    async resolve(id) {
+      const resolution = prompt('Resolution summary:') || 'Resolved by admin';
+      const r = await mktApi('PUT', '/admin/tickets/'+id+'/resolve', { resolution });
+      if (r.success) { showToast('Resolved ✓'); await this.load(); }
+      else showToast(r.message||'Failed','error');
+    },
+    init() { this.load(); }
+  };
+}
+
+function mktDocuments() {
+  return {
+    docs: [], loading: false, generating: false, fmt: mktFmt,
+    gen: { type: '', data: { customerName: '', referenceId: '', total: 0 } },
+    async load() {
+      this.loading = true;
+      const r = await mktApi('GET', '/admin/documents?limit=50');
+      this.docs = r.data || []; this.loading = false;
+    },
+    async generate() {
+      if (!this.gen.type) return showToast('Select document type','error');
+      this.generating = true;
+      const r = await mktApi('POST', '/admin/documents/generate', { type: this.gen.type, data: { ...this.gen.data, documentId: 'DOC-'+Date.now() } });
+      this.generating = false;
+      if (r.success) { showToast('Generated: '+r.data.documentId); this.gen={type:'',data:{customerName:'',referenceId:'',total:0}}; await this.load(); }
+      else showToast(r.message||'Failed','error');
+    },
+    viewDoc(id) { window.open(MKT_API + '/admin/documents/' + id + '/html', '_blank'); },
+    init() { this.load(); }
+  };
+}
+
+function mktSettings() {
+  return {
+    settings: {}, loading: true, saving: false,
+    async init() {
+      const r = await mktApi('GET', '/admin/settings');
+      this.settings = r.data || {}; this.loading = false;
+    },
+    async save() {
+      this.saving = true;
+      const r = await mktApi('PUT', '/admin/settings', this.settings);
+      this.saving = false;
+      if (r.success) showToast('Settings saved ✓'); else showToast(r.message||'Failed','error');
     }
   };
 }

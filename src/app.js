@@ -239,11 +239,13 @@ class AppStore {
     ensureGuestSession() {
         let guestId = localStorage.getItem('emproium_guest_id');
         if (!guestId) {
-            // Generate a random 128-bit hex ID
-            guestId = Array.from(
-                crypto.getRandomValues ? crypto.getRandomValues(new Uint8Array(16))
-                                       : new Uint8Array(16).map(() => Math.floor(Math.random() * 256))
-            ).map(b => b.toString(16).padStart(2, '0')).join('');
+            // Use the Web Crypto API for a cryptographically secure random UUID.
+            // crypto.randomUUID() is available in all modern browsers (Chrome 92+,
+            // Firefox 95+, Safari 15.4+) and in HTTPS / localhost contexts.
+            guestId = (typeof crypto !== 'undefined' && crypto.randomUUID)
+                ? crypto.randomUUID()
+                : Array.from(crypto.getRandomValues(new Uint8Array(16)))
+                    .map(b => b.toString(16).padStart(2, '0')).join('');
             localStorage.setItem('emproium_guest_id', guestId);
         }
         this.state.guestSessionId = guestId;

@@ -90,7 +90,7 @@ window.handleSellerApplication = async function() {
         }
 
         // Submit application
-        const result = await api.applySeller(formData);
+        await api.applySeller(formData);
 
         LoadingOverlay.hide();
         Toast.show('✅ Application submitted successfully! We will review within 24 hours.', 'success');

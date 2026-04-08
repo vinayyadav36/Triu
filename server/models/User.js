@@ -63,6 +63,7 @@ const userSchema = new mongoose.Schema(
                 enum: ['pending', 'approved', 'rejected', 'suspended'],
                 default: 'pending'
             },
+            rejectionReason: { type: String, default: '' },
             rating: { type: Number, default: 0 },
             totalOrders: { type: Number, default: 0 },
             responseTime: { type: String, default: '24 hours' }

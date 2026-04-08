@@ -217,6 +217,7 @@ router.post('/auth/otp/send', otpRateLimit, (req, res) => {
   if (!identifier || !agentId) return res.status(400).json({ ok: false, message: 'identifier + agentId required' });
 
   const partners = [...readJSON('partners_active'), ...readJSON('partners')];
+  const partner = partners.find(
     p => p.agentId === agentId && (p.phone === identifier || p.email === identifier)
   );
   if (!partner) return res.status(404).json({ ok: false, message: 'Agent not found' });

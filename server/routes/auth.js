@@ -5,7 +5,7 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const User = require('../models/User');
 const OtpToken = require('../models/OtpToken');
-const { validateEmail, validatePassword } = require('../utils/validators');
+const { validateEmail } = require('../utils/validators');
 
 // Generate JWT token
 const generateToken = (userId) => {

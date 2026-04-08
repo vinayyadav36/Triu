@@ -323,11 +323,6 @@ class APIService {
         return this.request('DELETE', `/cart/${productId}`);
     }
 
-    // ========== PRODUCT SINGLE ==========
-    async getProduct(id) {
-        return this.request('GET', `/products/${id}`);
-    }
-
     // ========== GEO / LOCATION ==========
     async getProductsByLocation(lat, lng, radius = 50) {
         return this.request('GET', `/products/nearby?lat=${lat}&lng=${lng}&radius=${radius}`);
@@ -449,38 +444,12 @@ class APIService {
     }
 
     // ========== OTP AUTH (Gromo-style for partners) ==========
-    async requestOtp(identifier, purpose = 'login') {
-        return this.request('POST', '/auth/otp/request', { identifier, purpose });
-    }
-
-    async verifyOtp(requestId, otp) {
-        return this.request('POST', '/auth/otp/verify', { requestId, otp });
-    }
-
     async partnerSendOTP(identifier, agentId) {
         return this.request('POST', '/auth/otp/send', { identifier, agentId });
     }
 
     async partnerVerifyOTP(identifier, otp, agentId) {
         return this.request('POST', '/auth/otp/verify', { identifier, otp, agentId });
-    }
-
-    async setSafeKey(key) {
-        return this.request('POST', '/auth/set-key', { key });
-    }
-
-    async loginWithKey(identifier, key) {
-        const result = await this.request('POST', '/auth/login-with-key', { identifier, key });
-        if (result.token) this.setToken(result.token);
-        return result;
-    }
-
-    async refreshToken() {
-        return this.request('POST', '/auth/refresh');
-    }
-
-    logout() {
-        this.clearToken();
     }
 
     // ========== AI CONCIERGE SEARCH ==========

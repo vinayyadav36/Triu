@@ -50,8 +50,6 @@ function isPiiRoute(path) {
  * Non-blocking: logging failures never interrupt the request lifecycle.
  */
 function auditLogger(req, res, next) {
-    const start = Date.now();
-
     res.on('finish', () => {
         // Skip health-check and static asset noise
         if (req.path === '/api/health' || !req.path.startsWith('/api/')) return;

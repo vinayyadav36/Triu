@@ -5,7 +5,6 @@ const Product = require('../models/Product');
 const User = require('../models/User');
 const { verifyToken } = require('../middleware/auth');
 const { v4: uuidv4 } = require('uuid');
-const axios = require('axios');
 
 // ============================================
 // POST /api/orders (Create order)
@@ -97,7 +96,7 @@ router.post('/', verifyToken, async (req, res) => {
             deliveryAddress,
             payment: {
                 method: payment.method || 'COD',
-                status: payment.method === 'COD' ? 'pending' : 'pending'
+                status: 'pending'
             },
             status: 'pending',
             notes

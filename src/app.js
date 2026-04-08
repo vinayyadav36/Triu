@@ -242,9 +242,9 @@ class AppStore {
             // Use the Web Crypto API for a cryptographically secure random UUID.
             // crypto.randomUUID() is available in all modern browsers (Chrome 92+,
             // Firefox 95+, Safari 15.4+) and in HTTPS / localhost contexts.
-            guestId = (typeof crypto !== 'undefined' && crypto.randomUUID)
-                ? crypto.randomUUID()
-                : Array.from(crypto.getRandomValues(new Uint8Array(16)))
+            guestId = window.crypto.randomUUID
+                ? window.crypto.randomUUID()
+                : Array.from(window.crypto.getRandomValues(new Uint8Array(16)))
                     .map(b => b.toString(16).padStart(2, '0')).join('');
             localStorage.setItem('emproium_guest_id', guestId);
         }

@@ -1,12 +1,10 @@
 const express = require('express');
 const router = express.Router();
+const mongoose = require('mongoose');
 const { verifyToken, verifyAdmin } = require('../middleware/auth');
 const User = require('../models/User');
 const Product = require('../models/Product');
 const Order = require('../models/Order');
-
-// Escape special regex characters to prevent ReDoS from user input
-const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 // ============================================
 // GET /api/admin/dashboard  –  Business Overview
@@ -414,10 +412,13 @@ router.put('/sellers/:id/approve', verifyToken, verifyAdmin, async (req, res) =>
 // ============================================
 router.put('/sellers/:id/reject', verifyToken, verifyAdmin, async (req, res) => {
     try {
-        const { reason } = req.body;
+        if (!mongoose.isValidObjectId(req.params.id)) {
+            return res.status(400).json({ success: false, message: 'Invalid seller ID' });
+        }
+        const reason = String(req.body.reason || '').slice(0, 500);
         const user = await User.findByIdAndUpdate(
             req.params.id,
-            { 'seller.status': 'rejected' },
+            { 'seller.status': 'rejected', 'seller.rejectionReason': reason },
             { new: true }
         ).select('-password -safeKeyHash');
 

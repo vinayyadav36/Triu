@@ -6,9 +6,6 @@ const Order = require('../models/Order');
 const { verifyToken } = require('../middleware/auth');
 const { getVector } = require('../utils/embeddings');
 
-// Escape special regex characters to prevent ReDoS from user input
-const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
 // ── Category carbon factors (kg CO₂ per unit, shipping estimate) ────────────
 const CARBON_FACTORS = {
     'Electronics':     5.2,

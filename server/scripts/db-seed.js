@@ -489,11 +489,9 @@ async function seed() {
   console.log('\n🌱 Seeding database...\n');
 
   // --- Admins ---
-  const createdAdmins = [];
   for (const a of adminUsers) {
     const hashed = await hashPassword(a.password);
     const user = await User.create({ ...a, password: hashed });
-    createdAdmins.push(user);
     console.log(`  👤 Admin: ${user.name} (${user.email})`);
   }
 

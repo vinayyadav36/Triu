@@ -7,7 +7,7 @@ function injectEnvPlugin() {
   return {
     name: 'inject-env',
     transformIndexHtml() {
-      const envScript = `<script>
+      const envContent = `
 window.__ENV__ = {
   VITE_API_URL: ${JSON.stringify(process.env.VITE_API_URL || 'http://localhost:5000/api')},
   VITE_RAZORPAY_KEY_ID: ${JSON.stringify(process.env.VITE_RAZORPAY_KEY_ID || '')},
@@ -17,8 +17,8 @@ window.__ENV__ = {
   VITE_APPWRITE_ENDPOINT: ${JSON.stringify(process.env.VITE_APPWRITE_ENDPOINT || 'https://syd.cloud.appwrite.io/v1')},
   VITE_APPWRITE_PROJECT_ID: ${JSON.stringify(process.env.VITE_APPWRITE_PROJECT_ID || '69d77850001bef04a924')},
 };
-</script>`
-      return [{ tag: 'script', attrs: {}, children: envScript.replace(/<\/?script>/g, ''), injectTo: 'head-prepend' }]
+`
+      return [{ tag: 'script', attrs: {}, children: envContent, injectTo: 'head-prepend' }]
     }
   }
 }

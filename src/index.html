@@ -1855,6 +1855,9 @@
               autocomplete="new-password"
               placeholder="A strong key you will remember"
               class="rounded-full border border-[#374151] bg-black/70 px-3 py-2 text-[11px] text-slate-100 w-full" />
+            <label for="auth-key-confirm" class="block text-[11px] font-semibold text-slate-200 mb-1 mt-2">
+              Confirm key
+            </label>
             <input
               x-ref="authKeyConfirm"
               id="auth-key-confirm"
@@ -1862,7 +1865,7 @@
               type="password"
               autocomplete="new-password"
               placeholder="Confirm key"
-              class="mt-2 rounded-full border border-[#374151] bg-black/70 px-3 py-2 text-[11px] text-slate-100 w-full" />
+              class="rounded-full border border-[#374151] bg-black/70 px-3 py-2 text-[11px] text-slate-100 w-full" />
             <button
               type="button"
               @click="window.handleAuthSetKey.call($data)"

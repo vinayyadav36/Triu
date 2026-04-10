@@ -62,7 +62,7 @@ async function sendOtpEmail(toEmail, otpCode, purpose = 'login') {
             [],                // bcc
             [],                // attachments
             false,             // draft
-            true               // html = false (plain text)
+            false              // html (false = plain text)
         );
 
         console.log(`✅ OTP sent via Appwrite email to ${toEmail}`);

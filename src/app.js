@@ -1181,7 +1181,7 @@ class AppStore {
         if (window.Toast) {
             window.Toast.show(message, type);
         } else {
-            // Toast not loaded yet — queue it
+            // Toast module not loaded yet — retry after a short delay
             setTimeout(() => {
                 if (window.Toast) window.Toast.show(message, type);
                 else console.log(`[Toast] ${type}: ${message}`);

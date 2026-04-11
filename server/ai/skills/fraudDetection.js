@@ -118,21 +118,24 @@ function analyzeRefundSpike(sellerId) {
     };
 }
 
+// Validation regex constants
+const GST_REGEX   = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
+const PAN_REGEX   = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
+const PHONE_REGEX = /^[6-9]\d{9}$/;
+
 // ── Seller onboarding validator ───────────────────────────────────────────────
 function analyzeSellerOnboarding(sellerData) {
     const flags  = [];
     let score    = 0;
 
     // GST validation (format: 22AAAAA0000A1Z5)
-    const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
-    if (sellerData.gstNumber && !gstRegex.test(sellerData.gstNumber)) {
+    if (sellerData.gstNumber && !GST_REGEX.test(sellerData.gstNumber)) {
         flags.push('invalid_gst_format');
         score += 30;
     }
 
     // PAN validation (format: ABCDE1234F)
-    const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
-    if (sellerData.panNumber && !panRegex.test(sellerData.panNumber)) {
+    if (sellerData.panNumber && !PAN_REGEX.test(sellerData.panNumber)) {
         flags.push('invalid_pan_format');
         score += 30;
     }
@@ -149,8 +152,7 @@ function analyzeSellerOnboarding(sellerData) {
     }
 
     // Phone number validation
-    const phoneRegex = /^[6-9]\d{9}$/;
-    if (sellerData.phone && !phoneRegex.test(sellerData.phone.replace(/\D/g, ''))) {
+    if (sellerData.phone && !PHONE_REGEX.test(sellerData.phone.replace(/\D/g, ''))) {
         flags.push('invalid_phone_format');
         score += 10;
     }

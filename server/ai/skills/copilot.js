@@ -43,8 +43,11 @@ function extractAmount(query) {
 }
 
 function extractLimit(query) {
-    const match = query.match(/top\s+(\d+)|(\d+)\s+products/i);
-    return match ? parseInt(match[1] || match[2], 10) : 5;
+    // Use simple non-backtracking pattern
+    const m1 = query.match(/top\s+(\d{1,3})/i);
+    if (m1) return parseInt(m1[1], 10);
+    const m2 = query.match(/(\d{1,3})\s+products/i);
+    return m2 ? parseInt(m2[1], 10) : 5;
 }
 
 // ── Dashboard card builders ───────────────────────────────────────────────────

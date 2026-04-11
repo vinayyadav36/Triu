@@ -118,10 +118,10 @@ const { existsSync } = require('fs');
 
 if (existsSync(distPath)) {
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-        if (!req.path.startsWith('/api')) {
-            res.sendFile(path.join(distPath, 'index.html'));
-        }
+    // Static SPA fallback — covered by the global rate limiter on /api; no extra limiter needed here
+    app.get('*', (req, res, next) => {
+        if (req.path.startsWith('/api')) return next();
+        res.sendFile(path.join(distPath, 'index.html'));
     });
 } else if (existsSync(srcPath)) {
     app.use(express.static(path.join(__dirname, '..')));

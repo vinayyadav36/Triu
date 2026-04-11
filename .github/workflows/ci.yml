@@ -1,15 +1,15 @@
 name: CI — Lint · Test · Build
 
 on:
-  pull_request:
-    branches: [main]
   push:
-    branches: [main]
+    branches: ['**']
+  pull_request:
+    branches: ['**']
   workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   # ─────────────────────────────────────────────────────────────────────────────
@@ -64,7 +64,7 @@ jobs:
         env:
           NODE_ENV: test
           JWT_SECRET: test-secret-key-for-ci
-          MONGODB_URI: mongodb://localhost:27017/test
+          
 
   # ─────────────────────────────────────────────────────────────────────────────
   # 3. BACKEND INTEGRATION TESTS (MongoDB Memory Server)

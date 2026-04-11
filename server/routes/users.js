@@ -1,205 +1,118 @@
-const express = require('express');
-const router = express.Router();
-const User = require('../models/User');
-const Order = require('../models/Order');
+// ============================================
+// USERS ROUTES
+// ============================================
+const express   = require('express');
+const router    = express.Router();
+const bcrypt    = require('bcryptjs');
+const db        = require('../utils/jsonDB');
 const { verifyToken } = require('../middleware/auth');
 
-// ============================================
+function safeUser(user) {
+    const { passwordHash, ...rest } = user;
+    return rest;
+}
+
 // GET /api/users/profile
-// ============================================
-router.get('/profile', verifyToken, async (req, res) => {
+router.get('/profile', verifyToken, (req, res) => {
     try {
-        const user = await User.findById(req.user.id);
-
-        res.json({
-            success: true,
-            data: user.toJSON()
-        });
-    } catch (error) {
-        console.error('❌ Get profile error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to fetch profile'
-        });
+        const user = db.findById('users', req.user.id);
+        if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+        return res.json({ success: true, data: safeUser(user) });
+    } catch (err) {
+        return res.status(500).json({ success: false, message: 'Failed to load profile' });
     }
 });
 
-// ============================================
 // PUT /api/users/profile
-// ============================================
-router.put('/profile', verifyToken, async (req, res) => {
+router.put('/profile', verifyToken, (req, res) => {
     try {
-        const { name, phone, address, notifications } = req.body;
-        const updateFields = {};
-        if (name !== undefined) updateFields.name = name;
-        if (phone !== undefined) updateFields.phone = phone;
-        if (address !== undefined) updateFields.address = address;
-        if (notifications !== undefined) updateFields.notifications = notifications;
+        const { name, phone, address } = req.body;
+        const updates = {};
+        if (name)    updates.name    = name.trim();
+        if (phone)   updates.phone   = phone.trim();
+        if (address) updates.address = address;
 
-        const user = await User.findByIdAndUpdate(
-            req.user.id,
-            updateFields,
-            { new: true, runValidators: true }
-        );
-
-        res.json({
-            success: true,
-            message: 'Profile updated successfully',
-            data: user.toJSON()
-        });
-    } catch (error) {
-        console.error('❌ Update profile error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to update profile'
-        });
+        const updated = db.updateById('users', req.user.id, updates);
+        if (!updated) return res.status(404).json({ success: false, message: 'User not found' });
+        return res.json({ success: true, message: 'Profile updated', data: safeUser(updated) });
+    } catch (err) {
+        return res.status(500).json({ success: false, message: 'Failed to update profile' });
     }
 });
 
-// ============================================
-// PUT /api/users/password  –  Change Password
-// ============================================
+// PUT /api/users/password
 router.put('/password', verifyToken, async (req, res) => {
     try {
         const { currentPassword, newPassword } = req.body;
-
         if (!currentPassword || !newPassword) {
-            return res.status(400).json({ success: false, message: 'Both current and new passwords are required' });
+            return res.status(400).json({ success: false, message: 'Both current and new password are required' });
         }
         if (newPassword.length < 6) {
             return res.status(400).json({ success: false, message: 'New password must be at least 6 characters' });
         }
 
-        const user = await User.findById(req.user.id).select('+password');
-        const isValid = await user.matchPassword(currentPassword);
-        if (!isValid) {
-            return res.status(401).json({ success: false, message: 'Current password is incorrect' });
-        }
+        const user = db.findById('users', req.user.id);
+        if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
-        user.password = newPassword;
-        await user.save();
+        const valid = await bcrypt.compare(currentPassword, user.passwordHash);
+        if (!valid) return res.status(401).json({ success: false, message: 'Current password is incorrect' });
 
-        res.json({ success: true, message: 'Password changed successfully' });
-    } catch (error) {
-        console.error('❌ Change password error:', error);
-        res.status(500).json({ success: false, message: 'Failed to change password' });
+        const passwordHash = await bcrypt.hash(newPassword, 10);
+        db.updateById('users', req.user.id, { passwordHash });
+        return res.json({ success: true, message: 'Password changed successfully' });
+    } catch (err) {
+        return res.status(500).json({ success: false, message: 'Failed to change password' });
     }
 });
 
-// ============================================
 // GET /api/users/wishlist
-// ============================================
-router.get('/wishlist', verifyToken, async (req, res) => {
+router.get('/wishlist', verifyToken, (req, res) => {
     try {
-        const user = await User.findById(req.user.id).populate('wishlist');
+        const user = db.findById('users', req.user.id);
+        if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
-        res.json({
-            success: true,
-            data: user.wishlist
-        });
-    } catch (error) {
-        console.error('❌ Get wishlist error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to fetch wishlist'
-        });
+        const wishlist = (user.wishlist || []).map(productId => db.findById('products', productId)).filter(Boolean);
+        return res.json({ success: true, data: wishlist });
+    } catch (err) {
+        return res.status(500).json({ success: false, message: 'Failed to load wishlist' });
     }
 });
 
-// ============================================
-// POST /api/users/wishlist/:productId  –  Toggle Wishlist
-// ============================================
-router.post('/wishlist/:productId', verifyToken, async (req, res) => {
+// POST /api/users/wishlist/:productId — toggle
+router.post('/wishlist/:productId', verifyToken, (req, res) => {
     try {
-        const user = await User.findById(req.user.id);
-        const productId = req.params.productId;
-        const idx = user.wishlist.findIndex(id => id.toString() === productId);
-        let action;
+        const user = db.findById('users', req.user.id);
+        if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
-        if (idx !== -1) {
-            user.wishlist.splice(idx, 1);
-            action = 'removed';
+        const productId = req.params.productId;
+        const product   = db.findById('products', productId);
+        if (!product) return res.status(404).json({ success: false, message: 'Product not found' });
+
+        let wishlist = user.wishlist || [];
+        let action;
+        if (wishlist.includes(productId)) {
+            wishlist = wishlist.filter(id => id !== productId);
+            action   = 'removed';
         } else {
-            user.wishlist.push(productId);
+            wishlist.push(productId);
             action = 'added';
         }
 
-        await user.save();
-
-        res.json({
-            success: true,
-            message: `Product ${action} ${action === 'added' ? 'to' : 'from'} wishlist`,
-            data: user.wishlist,
-            action
-        });
-    } catch (error) {
-        console.error('❌ Wishlist error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to update wishlist'
-        });
+        db.updateById('users', req.user.id, { wishlist });
+        return res.json({ success: true, message: `Product ${action} from wishlist`, data: { wishlist, action } });
+    } catch (err) {
+        return res.status(500).json({ success: false, message: 'Failed to update wishlist' });
     }
 });
 
-// ============================================
-// GET /api/users/orders  –  User's Order History
-// ============================================
-router.get('/orders', verifyToken, async (req, res) => {
+// GET /api/users/orders
+router.get('/orders', verifyToken, (req, res) => {
     try {
-        const { status, page = 1, limit = 10 } = req.query;
-        const parsedPage = Math.max(1, parseInt(page, 10) || 1);
-        const parsedLimit = Math.min(100, Math.max(1, parseInt(limit, 10) || 10));
-        const skip = (parsedPage - 1) * parsedLimit;
-
-        const query = { userId: req.user.id };
-        if (status) query.status = status;
-
-        const [orders, total] = await Promise.all([
-            Order.find(query)
-                .sort({ createdAt: -1 })
-                .skip(skip)
-                .limit(parsedLimit)
-                .populate('items.productId', 'name thumbnail')
-                .lean(),
-            Order.countDocuments(query)
-        ]);
-
-        res.json({
-            success: true,
-            data: orders,
-            pagination: { total, page: parsedPage, limit: parsedLimit, pages: Math.ceil(total / parsedLimit) }
-        });
-    } catch (error) {
-        console.error('❌ User orders error:', error);
-        res.status(500).json({ success: false, message: 'Failed to fetch orders' });
-    }
-});
-
-// ============================================
-// POST /api/users/orders/:id/return  –  Request Return
-// ============================================
-router.post('/orders/:id/return', verifyToken, async (req, res) => {
-    try {
-        const { reason } = req.body;
-        if (!reason) {
-            return res.status(400).json({ success: false, message: 'Return reason is required' });
-        }
-
-        const order = await Order.findOne({ _id: req.params.id, userId: req.user.id });
-        if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
-
-        if (order.status !== 'delivered') {
-            return res.status(400).json({ success: false, message: 'Only delivered orders can be returned' });
-        }
-
-        order.refund = { status: 'requested', reason, amount: order.total };
-        order.status = 'returned';
-        await order.save();
-
-        res.json({ success: true, message: 'Return request submitted', data: order });
-    } catch (error) {
-        console.error('❌ Return request error:', error);
-        res.status(500).json({ success: false, message: 'Failed to submit return request' });
+        const orders = db.find('orders', o => o.userId === req.user.id);
+        orders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        return res.json({ success: true, data: orders });
+    } catch (err) {
+        return res.status(500).json({ success: false, message: 'Failed to load orders' });
     }
 });
 

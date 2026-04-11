@@ -1,0 +1,40 @@
+[
+  {
+    "id": "f3da105c-c521-421a-b685-186dd0be2c6d",
+    "orderId": "ORD6A4649DD6031",
+    "userId": "3fbe8ba1-7263-48b2-a262-a896538b79cf",
+    "customerName": "Test Buyer",
+    "customerEmail": "buyer@test.com",
+    "customerPhone": "9876543210",
+    "items": [
+      {
+        "productId": "08102d59-f52d-4505-8ab9-2e4479de74dd",
+        "sellerId": "915bbd37-e9c9-4883-88ee-06f04b156d6d",
+        "name": "Neem Face Wash (100ml)",
+        "price": 199,
+        "quantity": 1,
+        "image": "",
+        "total": 199
+      }
+    ],
+    "subtotal": 199,
+    "shipping": 50,
+    "discount": 0,
+    "total": 249,
+    "deliveryAddress": {
+      "street": "123 Test St",
+      "city": "Mumbai",
+      "state": "Maharashtra",
+      "postalCode": "400001",
+      "country": "India"
+    },
+    "payment": {
+      "method": "COD",
+      "status": "pending"
+    },
+    "status": "pending",
+    "notes": "",
+    "createdAt": "2026-04-11T10:08:43.357Z",
+    "updatedAt": "2026-04-11T10:08:43.357Z"
+  }
+]

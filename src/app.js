@@ -771,10 +771,36 @@ class AppStore {
         }
     }
 
-    /**
-     * Start login/signup by requesting an OTP to email or phone.
-     * Start login/signup by requesting an OTP to email or phone.
-     */
+    // ── Email+password auth ───────────────────────────────────────────────────
+    async login(email, password) {
+        const result = await window.api.login(email, password);
+        this.state.user = result.user;
+        this.state.isLoggedIn = true;
+        this.state.sessionExpiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000;
+        this.loadProfileAndOrders().catch(console.error);
+        this.saveToStorage();
+        this.notify();
+        this.closeModal('login');
+        this.showToast('✅ Logged in!', 'success');
+        this._executePendingAction();
+        return result;
+    }
+
+    async register(name, email, phone, password, passwordConfirm) {
+        const result = await window.api.register(name, email, phone, password, passwordConfirm);
+        this.state.user = result.user;
+        this.state.isLoggedIn = true;
+        this.state.sessionExpiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000;
+        this.loadProfileAndOrders().catch(console.error);
+        this.saveToStorage();
+        this.notify();
+        this.closeModal('login');
+        this.showToast('✅ Account created!', 'success');
+        this._executePendingAction();
+        return result;
+    }
+
+    /** @deprecated kept for compatibility — not used */
     async startOtpFlow(identifier, purpose = 'login') {
         if (!identifier) {
             throw new Error('Identifier is required');
@@ -1101,77 +1127,58 @@ class AppStore {
     async placeOrder(orderData) {
         this.state.loading.order = true;
         this.notify();
-        
         try {
-            // Send to EmailJS
-            const result = await EmailManager.submitOrderToGmail({
-                customerName: orderData.name,
-                customerEmail: orderData.email,
-                customerPhone: orderData.phone,
-                customerAddress: orderData.address,
-                items: EmailManager.generateOrderSummary(this.state.cart),
-                subtotal: this.getCartTotal(),
-                shipping: this.getShipping(),
-                discount: this.getDiscount(),
-                total: this.getFinalTotal(),
-                paymentMethod: orderData.paymentMethod,
-                notes: orderData.notes
-            });
-            
-            // Save last order
-            this.state.lastOrder = {
-                orderId: result.orderId,
-                orderData,
-                timestamp: new Date(),
-                total: this.getFinalTotal()
+            const items = this.state.cart.map(item => ({
+                productId: item.id || item._id,
+                quantity: item.quantity
+            }));
+            const deliveryAddress = {
+                street: orderData.address,
+                city: orderData.city || '',
+                state: orderData.state || '',
+                postalCode: orderData.pincode || '',
+                country: 'India'
             };
-            
+            const result = await window.api.createOrder({
+                items,
+                deliveryAddress,
+                payment: { method: orderData.paymentMethod || 'COD' },
+                notes: orderData.notes || ''
+            });
+            this.state.lastOrder = result.data;
             this.state.loading.order = false;
             this.clearCart();
             this.closeModal('checkout');
             this.notify();
-            
             this.showToast('✅ Order placed successfully!', 'success');
             return result;
-            
         } catch (error) {
             this.state.loading.order = false;
             this.notify();
-            this.showToast('❌ ' + error.message, 'error');
+            this.showToast('❌ ' + (error.message || 'Order failed'), 'error');
             throw error;
         }
     }
-    
+
     // ========== Seller Registration ==========
     async registerSeller(formData) {
         this.state.loading.checkout = true;
         this.notify();
-        
         try {
-            // Simulate API call
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            
-            const newSeller = {
-                id: this.state.sellers.length + 1,
-                name: formData.businessName,
-                desc: formData.description,
-                status: 'pending',
-                verified: false,
-                avatar: '🏪'
-            };
-            
-            this.state.sellers.push(newSeller);
+            const result = await window.api.applySeller(formData);
             this.state.loading.checkout = false;
             this.closeModal('seller');
+            if (result.data) {
+                this.state.user = result.data;
+                this.saveToStorage();
+            }
             this.notify();
-            
-            this.showToast('✅ Application submitted! Admin will review within 24 hours.', 'success');
-            return newSeller;
-            
+            this.showToast('✅ Application submitted! Admin will review shortly.', 'success');
+            return result;
         } catch (error) {
             this.state.loading.checkout = false;
             this.notify();
-            this.showToast('❌ Registration failed', 'error');
+            this.showToast('❌ ' + (error.message || 'Registration failed'), 'error');
             throw error;
         }
     }
@@ -1941,22 +1948,14 @@ function appData() {
         async placeOrder(formData) {
             await store.placeOrder(formData);
         },
-        
-        // Auth methods (OTP + key)
-        async startOtp(identifier, purpose = 'login') {
-            return store.startOtpFlow(identifier, purpose);
+
+        // Auth methods (email + password)
+        async handleLogin(email, password) {
+            return store.login(email, password);
         },
 
-        async verifyOtp(otpCode) {
-            return store.verifyOtpCode(otpCode);
-        },
-
-        async setSafeKey(key) {
-            return store.setSafeKey(key);
-        },
-
-        async loginWithKey(identifier, key) {
-            return store.loginWithKey(identifier, key);
+        async handleRegister(name, email, phone, password, passwordConfirm) {
+            return store.register(name, email, phone, password, passwordConfirm);
         },
 
         async extendSession() {

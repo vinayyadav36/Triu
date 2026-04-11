@@ -1,294 +1,192 @@
-const express = require('express');
-const router = express.Router();
-const User = require('../models/User');
-const Product = require('../models/Product');
-const Order = require('../models/Order');
-const { verifyToken, verifySeller } = require('../middleware/auth');
-
 // ============================================
+// SELLERS ROUTES
+// ============================================
+const express        = require('express');
+const router         = express.Router();
+const db             = require('../utils/jsonDB');
+const { verifyToken } = require('../middleware/auth');
+const fraudDetection = require('../ai/skills/fraudDetection');
+const eventQueue     = require('../services/eventQueue');
+
+function safeUser(user) {
+    const { passwordHash, ...rest } = user;
+    return rest;
+}
+
 // POST /api/sellers/apply
-// ============================================
-router.post('/apply', verifyToken, async (req, res) => {
+router.post('/apply', verifyToken, (req, res) => {
     try {
-        const { businessName, description, businessType, gstNumber, panNumber } = req.body;
         const userId = req.user.id;
+        const { businessName, description, gstNumber, panNumber, category, bankAccount, phone, address } = req.body;
 
-        // Validation
-        if (!businessName || !description) {
-            return res.status(400).json({
-                success: false,
-                message: 'Business name and description are required'
-            });
+        if (!businessName || !gstNumber) {
+            return res.status(400).json({ success: false, message: 'Business name and GST number are required' });
         }
 
-        const user = await User.findById(userId);
+        const user = db.findById('users', userId);
+        if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
-        // Check if already a seller
-        if (user.role === 'seller') {
-            return res.status(400).json({
-                success: false,
-                message: 'You are already a seller'
-            });
+        if (user.seller && user.seller.status === 'approved') {
+            return res.status(400).json({ success: false, message: 'Already a registered seller' });
         }
 
-        // Update user with seller info
-        user.role = 'seller';
-        user.seller = {
+        const fraudCheck = fraudDetection.analyzeSellerOnboarding({ gstNumber, panNumber, phone });
+        if (!fraudCheck.valid) {
+            return res.status(400).json({ success: false, message: 'Validation failed: ' + fraudCheck.flags.join(', ') });
+        }
+
+        const sellerData = {
             businessName,
-            description,
-            businessType,
+            description:  description || '',
             gstNumber,
-            panNumber,
-            status: 'pending',
-            verified: false
+            panNumber:    panNumber   || '',
+            category:     category    || 'general',
+            bankAccount:  bankAccount || null,
+            phone:        phone       || user.phone,
+            address:      address     || null,
+            status:       'pending',
+            verified:     false,
+            appliedAt:    new Date().toISOString(),
+            approvedAt:   null,
         };
 
-        await user.save();
+        const updated = db.updateById('users', userId, { seller: sellerData, role: 'seller' });
 
-        res.status(201).json({
-            success: true,
-            message: 'Seller application submitted successfully',
-            data: user.toJSON()
+        eventQueue.publish(eventQueue.TOPICS.SELLER_ONBOARDED, {
+            userId, businessName, gstNumber, status: 'pending',
         });
-    } catch (error) {
-        console.error('❌ Seller apply error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to submit application'
-        });
+
+        return res.status(201).json({ success: true, message: 'Application submitted for review', data: safeUser(updated) });
+    } catch (err) {
+        console.error('Seller apply error:', err);
+        return res.status(500).json({ success: false, message: 'Failed to submit application' });
     }
 });
 
-// ============================================
-// GET /api/sellers/dashboard  –  Seller Dashboard Stats
-// ============================================
-router.get('/dashboard', verifyToken, verifySeller, async (req, res) => {
+// GET /api/sellers/dashboard
+router.get('/dashboard', verifyToken, (req, res) => {
     try {
         const sellerId = req.user.id;
-        const since30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        const products = db.find('products', p => p.sellerId === sellerId);
+        const orders   = db.find('orders', o => (o.items || []).some(i => i.sellerId === sellerId));
 
-        const [
-            totalProducts,
-            activeProducts,
-            productIds,
-            recentOrderItems,
-            monthlySales
-        ] = await Promise.all([
-            Product.countDocuments({ sellerId }),
-            Product.countDocuments({ sellerId, status: 'active' }),
-            Product.find({ sellerId }).select('_id').lean(),
-            Order.find({
-                'items.sellerId': sellerId,
-                createdAt: { $gte: since30d }
-            }).select('items status total createdAt').lean(),
-            Order.aggregate([
-                { $match: { 'items.sellerId': sellerId, 'payment.status': 'completed' } },
-                { $unwind: '$items' },
-                { $match: { 'items.sellerId': sellerId } },
-                {
-                    $group: {
-                        _id: { $dateToString: { format: '%Y-%m', date: '$createdAt' } },
-                        revenue: { $sum: '$items.total' },
-                        units: { $sum: '$items.quantity' }
-                    }
-                },
-                { $sort: { _id: 1 } },
-                { $limit: 6 }
-            ])
-        ]);
+        const revenue = orders.filter(o => o.status !== 'cancelled').reduce((s, o) => {
+            const sellerItems = (o.items || []).filter(i => i.sellerId === sellerId);
+            return s + sellerItems.reduce((t, i) => t + (i.total || i.price * i.quantity), 0);
+        }, 0);
 
-        // Compute seller-specific totals from orders
-        let totalRevenue = 0;
-        let totalOrders = 0;
-        let pendingOrders = 0;
+        const pendingOrders = orders.filter(o => o.status === 'pending').length;
+        const lowStock      = products.filter(p => (p.stock || 0) < 10);
 
-        recentOrderItems.forEach(order => {
-            const sellerItems = order.items.filter(
-                i => String(i.sellerId) === String(sellerId)
-            );
-            if (sellerItems.length > 0) {
-                totalOrders++;
-                totalRevenue += sellerItems.reduce((sum, i) => sum + (i.total || 0), 0);
-                if (['pending', 'confirmed', 'processing'].includes(order.status)) {
-                    pendingOrders++;
-                }
-            }
-        });
-
-        // Low stock products
-        const lowStockProducts = await Product.find({
-            sellerId,
-            stock: { $lt: 10 },
-            status: 'active'
-        }).select('name stock price').lean();
-
-        res.json({
+        return res.json({
             success: true,
             data: {
-                overview: {
-                    totalProducts,
-                    activeProducts,
-                    totalRevenue,
-                    totalOrders,
-                    pendingOrders
-                },
-                monthlySales,
-                lowStockProducts
-            }
+                totalProducts: products.length,
+                totalOrders:   orders.length,
+                revenue:       parseFloat(revenue.toFixed(2)),
+                pendingOrders,
+                lowStockCount: lowStock.length,
+                lowStockItems: lowStock.map(p => ({ id: p.id, name: p.name, stock: p.stock })),
+            },
         });
-    } catch (error) {
-        console.error('❌ Seller dashboard error:', error);
-        res.status(500).json({ success: false, message: 'Failed to fetch seller dashboard' });
+    } catch (err) {
+        console.error('Seller dashboard error:', err);
+        return res.status(500).json({ success: false, message: 'Failed to load dashboard' });
     }
 });
 
-// ============================================
-// GET /api/sellers/orders  –  Seller's Orders
-// ============================================
-router.get('/orders', verifyToken, verifySeller, async (req, res) => {
+// GET /api/sellers/orders
+router.get('/orders', verifyToken, (req, res) => {
     try {
         const sellerId = req.user.id;
         const { status, page = 1, limit = 20 } = req.query;
-        const parsedPage = Math.max(1, parseInt(page, 10) || 1);
-        const parsedLimit = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
-        const skip = (parsedPage - 1) * parsedLimit;
 
-        const query = { 'items.sellerId': sellerId };
-        if (status) query.status = status;
+        let orders = db.find('orders', o => (o.items || []).some(i => i.sellerId === sellerId));
+        if (status) orders = orders.filter(o => o.status === status);
+        orders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-        const [orders, total] = await Promise.all([
-            Order.find(query)
-                .sort({ createdAt: -1 })
-                .skip(skip)
-                .limit(parsedLimit)
-                .populate('userId', 'name email phone')
-                .lean(),
-            Order.countDocuments(query)
-        ]);
+        const parsedPage  = Math.max(1, parseInt(page, 10));
+        const parsedLimit = Math.min(100, parseInt(limit, 10) || 20);
+        const total       = orders.length;
+        const paged       = orders.slice((parsedPage - 1) * parsedLimit, parsedPage * parsedLimit);
 
-        // Filter items to only show seller's own items
-        const sellerOrders = orders.map(order => ({
-            ...order,
-            items: order.items.filter(i => String(i.sellerId) === String(sellerId))
-        }));
-
-        res.json({
-            success: true,
-            data: sellerOrders,
-            pagination: { total, page: parsedPage, limit: parsedLimit, pages: Math.ceil(total / parsedLimit) }
-        });
-    } catch (error) {
-        console.error('❌ Seller orders error:', error);
-        res.status(500).json({ success: false, message: 'Failed to fetch seller orders' });
+        return res.json({ success: true, data: paged, total, page: parsedPage, limit: parsedLimit });
+    } catch (err) {
+        console.error('Seller orders error:', err);
+        return res.status(500).json({ success: false, message: 'Failed to load orders' });
     }
 });
 
-// ============================================
-// PUT /api/sellers/orders/:id/status  –  Update Order Item Status
-// ============================================
-router.put('/orders/:id/status', verifyToken, verifySeller, async (req, res) => {
+// PUT /api/sellers/orders/:id/status
+router.put('/orders/:id/status', verifyToken, (req, res) => {
     try {
-        const { status, trackingNumber, carrier } = req.body;
-        const validStatuses = ['confirmed', 'processing', 'shipped', 'delivered'];
+        const sellerId = req.user.id;
+        const { status } = req.body;
+        const VALID = ['confirmed', 'processing', 'shipped', 'delivered', 'cancelled'];
 
-        if (!validStatuses.includes(status)) {
-            return res.status(400).json({ success: false, message: 'Invalid status for seller' });
+        if (!status || !VALID.includes(status)) {
+            return res.status(400).json({ success: false, message: 'Status must be one of: ' + VALID.join(', ') });
         }
 
-        const order = await Order.findById(req.params.id);
+        const order = db.findById('orders', req.params.id);
         if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
 
-        // Verify this seller has items in the order
-        const hasItems = order.items.some(i => String(i.sellerId) === String(req.user.id));
-        if (!hasItems) {
-            return res.status(403).json({ success: false, message: 'Unauthorized' });
-        }
+        const isSeller = (order.items || []).some(i => i.sellerId === sellerId);
+        if (!isSeller) return res.status(403).json({ success: false, message: 'Not authorized' });
 
-        order.status = status;
-        if (trackingNumber) {
-            order.tracking = { number: trackingNumber, carrier: carrier || '' };
-        }
-        await order.save();
-
-        res.json({ success: true, message: 'Order status updated', data: order });
-    } catch (error) {
-        console.error('❌ Seller update order error:', error);
-        res.status(500).json({ success: false, message: 'Failed to update order' });
+        const updated = db.updateById('orders', order.id, { status });
+        return res.json({ success: true, message: 'Order status updated', data: updated });
+    } catch (err) {
+        console.error('Update order status error:', err);
+        return res.status(500).json({ success: false, message: 'Failed to update status' });
     }
 });
 
-// ============================================
-// GET /api/sellers
-// ============================================
-router.get('/', async (req, res) => {
+// GET /api/sellers — public approved sellers list
+router.get('/', (req, res) => {
     try {
-        const { status = 'approved' } = req.query;
-
-        const sellers = await User.find({
-            role: 'seller',
-            'seller.status': status
-        }).select('name seller email phone');
-
-        res.json({
-            success: true,
-            data: sellers
-        });
-    } catch (error) {
-        console.error('❌ Get sellers error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to fetch sellers'
-        });
+        const sellers = db.find('users', u => u.seller && u.seller.status === 'approved')
+            .map(u => ({
+                id:           u.id,
+                businessName: u.seller.businessName,
+                description:  u.seller.description,
+                category:     u.seller.category,
+                verified:     u.seller.verified,
+            }));
+        return res.json({ success: true, data: sellers });
+    } catch (err) {
+        return res.status(500).json({ success: false, message: 'Failed to list sellers' });
     }
 });
 
-// ============================================
 // GET /api/sellers/:id
-// ============================================
-router.get('/:id', async (req, res) => {
+router.get('/:id', (req, res) => {
     try {
-        const seller = await User.findById(req.params.id).select('name seller email phone');
-
-        if (!seller || seller.role !== 'seller') {
-            return res.status(404).json({
-                success: false,
-                message: 'Seller not found'
-            });
-        }
-
-        res.json({
+        const user = db.findById('users', req.params.id);
+        if (!user || !user.seller) return res.status(404).json({ success: false, message: 'Seller not found' });
+        return res.json({
             success: true,
-            data: seller
+            data: {
+                id:           user.id,
+                name:         user.name,
+                businessName: user.seller.businessName,
+                description:  user.seller.description,
+                category:     user.seller.category,
+                verified:     user.seller.verified,
+            },
         });
-    } catch (error) {
-        console.error('❌ Get seller error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to fetch seller'
-        });
+    } catch (err) {
+        return res.status(500).json({ success: false, message: 'Failed to get seller' });
     }
 });
 
-// ============================================
 // GET /api/sellers/:id/products
-// ============================================
-router.get('/:id/products', async (req, res) => {
+router.get('/:id/products', (req, res) => {
     try {
-        const products = await Product.find({
-            sellerId: req.params.id,
-            status: 'active'
-        });
-
-        res.json({
-            success: true,
-            data: products
-        });
-    } catch (error) {
-        console.error('❌ Get seller products error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to fetch seller products'
-        });
+        const products = db.find('products', p => p.sellerId === req.params.id && p.status === 'active');
+        return res.json({ success: true, data: products });
+    } catch (err) {
+        return res.status(500).json({ success: false, message: 'Failed to get products' });
     }
 });
 

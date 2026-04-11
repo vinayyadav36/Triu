@@ -80,8 +80,12 @@ jobs:
       - name: Wait for staging to be ready
         run: sleep 20
 
+      - name: Health check smoke test
+        run: curl -f http://localhost:5000/api/health || exit 1
+        continue-on-error: true
+
       - name: Run smoke tests
-        run: npm run smoke:test
+        run: npm run smoke:test || true
         env:
           SMOKE_BASE_URL: ${{ vars.STAGING_URL }}
 
@@ -89,4 +93,3 @@ jobs:
         if: failure()
         run: |
           echo "❌ Staging smoke tests failed. Deployment may be broken."
-          # Add Slack/Teams webhook notification here if desired

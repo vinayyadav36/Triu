@@ -3,8 +3,14 @@
 // ============================================
 
 const validateEmail = (email) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
+    if (typeof email !== 'string' || email.length > 254) return false;
+    // Linear-time safe email check: local@domain.tld
+    const at = email.indexOf('@');
+    if (at < 1 || at !== email.lastIndexOf('@')) return false;
+    const domain = email.slice(at + 1);
+    if (!domain || !domain.includes('.')) return false;
+    // No whitespace allowed
+    return !/\s/.test(email);
 };
 
 const validatePassword = (password) => {

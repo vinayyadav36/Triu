@@ -1,146 +1,187 @@
 // ============================================
-// EMPROIUMVIPANI - BACKEND SERVER (Express.js)
+// EMPORIUMVIPANI — BACKEND SERVER (Express.js)
 // ============================================
-
-const express = require('express');
-const cors = require('cors');
-const dotenv = require('dotenv');
-const mongoose = require('mongoose');
+const express   = require('express');
+const cors      = require('cors');
+const path      = require('path');
+const dotenv    = require('dotenv');
 const rateLimit = require('express-rate-limit');
-const { auditLogger } = require('./utils/auditLogger');
 
-// Load environment variables
 dotenv.config();
 
-// Pre-load models to ensure schemas and indexes are registered
-require('./models/Settlement');
-require('./models/SupportTicket');
-require('./models/GeneratedDocument');
-
-// Initialize Express app
 const app = express();
 
-// ============================================
-// 1. MIDDLEWARE
-// ============================================
+// ── Sentry (graceful no-op if SENTRY_DSN not set) ────────────────────────────
+let Sentry = null;
+if (process.env.SENTRY_DSN) {
+    try {
+        Sentry = require('@sentry/node');
+        Sentry.init({ dsn: process.env.SENTRY_DSN, tracesSampleRate: 0.1 });
+        app.use(Sentry.Handlers.requestHandler());
+        console.log('✅ Sentry initialized');
+    } catch {
+        console.log('⚠️ Sentry not available');
+    }
+}
 
-// CORS
+// ── CORS ──────────────────────────────────────────────────────────────────────
 app.use(cors({
-    origin: process.env.CLIENT_URL || 'http://localhost:5173',
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-    allowedHeaders: ['Content-Type', 'Authorization']
+    origin: (origin, callback) => {
+        const allowed = (process.env.CLIENT_URL || '')
+            .split(',')
+            .map(s => s.trim())
+            .filter(Boolean);
+        // Allow same-origin (no origin header) and configured origins
+        if (!origin || allowed.length === 0 || allowed.includes(origin)) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    credentials:    true,
+    methods:        ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
-// Body parsers
+// ── Body parsers ─────────────────────────────────────────────────────────────
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
-// Rate limiting
+// ── Rate limiting ─────────────────────────────────────────────────────────────
 const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // limit each IP to 100 requests per windowMs
-    message: 'Too many requests, please try again later'
+    windowMs: 15 * 60 * 1000,
+    max:      200,
+    message:  { success: false, message: 'Too many requests, please try again later' },
 });
 app.use('/api/', limiter);
 
-// DPDP-compliant audit logging for all API routes
-app.use(auditLogger);
+// ── Prometheus-style metrics ──────────────────────────────────────────────────
+let _requestCount = 0;
+let _errorCount   = 0;
+const _startTime  = Date.now();
 
-// ============================================
-// 2. DATABASE CONNECTION
-// ============================================
+app.use((req, _res, next) => { _requestCount++; next(); });
 
-const connectDB = async () => {
-    try {
-        await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/emproiumvipani');
-        console.log('✅ MongoDB connected successfully');
-    } catch (error) {
-        console.error('❌ MongoDB connection error:', error.message);
-        process.exit(1);
-    }
-};
-
-// ============================================
-// 3. ROUTES
-// ============================================
-
-// Health check
-app.get('/api/health', (req, res) => {
-    res.json({ 
-        status: 'ok', 
-        timestamp: new Date(),
-        uptime: process.uptime() 
-    });
+const metricsLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max:      30,
+    message:  { success: false, message: 'Too many requests to metrics endpoint' },
 });
 
-// API Routes
-app.use('/api/auth', require('./routes/auth'));
+app.get('/api/metrics', metricsLimiter, (_req, res) => {
+    const db = require('./utils/jsonDB');
+    const uptime = Math.floor((Date.now() - _startTime) / 1000);
+    res.set('Content-Type', 'text/plain; version=0.0.4');
+    res.send([
+        `# HELP http_requests_total Total HTTP requests`,
+        `# TYPE http_requests_total counter`,
+        `http_requests_total ${_requestCount}`,
+        `# HELP http_errors_total Total HTTP errors`,
+        `# TYPE http_errors_total counter`,
+        `http_errors_total ${_errorCount}`,
+        `# HELP process_uptime_seconds Server uptime in seconds`,
+        `# TYPE process_uptime_seconds gauge`,
+        `process_uptime_seconds ${uptime}`,
+        `# HELP db_users_total Total users in DB`,
+        `# TYPE db_users_total gauge`,
+        `db_users_total ${db.count('users')}`,
+        `# HELP db_products_total Total active products`,
+        `# TYPE db_products_total gauge`,
+        `db_products_total ${db.count('products', p => p.status === 'active')}`,
+        `# HELP db_orders_total Total orders`,
+        `# TYPE db_orders_total gauge`,
+        `db_orders_total ${db.count('orders')}`,
+    ].join('\n'));
+});
+
+// ── Health check ──────────────────────────────────────────────────────────────
+app.get('/api/health', (_req, res) => {
+    res.json({ status: 'ok', timestamp: new Date(), uptime: process.uptime() });
+});
+
+// ── Routes ────────────────────────────────────────────────────────────────────
+app.use('/api/auth',     require('./routes/auth'));
 app.use('/api/products', require('./routes/products'));
-app.use('/api/sellers', require('./routes/sellers'));
-app.use('/api/orders', require('./routes/orders'));
-app.use('/api/users', require('./routes/users'));
-app.use('/api/admin', require('./routes/admin'));
+app.use('/api/orders',   require('./routes/orders'));
+app.use('/api/sellers',  require('./routes/sellers'));
+app.use('/api/users',    require('./routes/users'));
+app.use('/api/admin',    require('./routes/admin'));
 app.use('/api/payments', require('./routes/payments'));
-app.use('/api/search', require('./routes/search'));
+app.use('/api/gst',      require('./routes/gst'));
+app.use('/api/ledger',   require('./routes/ledger'));
+app.use('/api/jarvis',   require('./routes/jarvis'));
 
-// Dynamic sitemap (served at root path, outside /api prefix)
-app.use('/sitemap.xml', require('./routes/sitemap'));
+// ── Static frontend ───────────────────────────────────────────────────────────
+const distPath = path.join(__dirname, '..', 'dist');
+const srcPath  = path.join(__dirname, '..', 'src');
+const { existsSync } = require('fs');
 
-// 404 handler
-app.use('*', (req, res) => {
-    res.status(404).json({ 
-        success: false, 
-        message: 'Route not found',
-        path: req.path 
-    });
+// Rate limiter for static/SPA routes (separate from /api limiter)
+const staticLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 500,
+    standardHeaders: true,
+    legacyHeaders: false,
 });
 
-// Error handler
-app.use((err, req, res, next) => {
+if (existsSync(distPath)) {
+    app.use(express.static(distPath));
+    // SPA fallback — serves the fixed index.html for all non-API client routes
+    app.get('*', staticLimiter, (req, res, next) => {
+        if (req.path.startsWith('/api')) return next();
+        // Path is hardcoded — no user input reaches sendFile
+        res.sendFile(path.join(distPath, 'index.html'));
+    });
+} else if (existsSync(srcPath)) {
+    app.use(staticLimiter, express.static(path.join(__dirname, '..')));
+}
+
+// ── Sentry error handler ─────────────────────────────────────────────────────
+if (Sentry) {
+    app.use(Sentry.Handlers.errorHandler());
+}
+
+// ── 404 ───────────────────────────────────────────────────────────────────────
+app.use('*', (req, res) => {
+    res.status(404).json({ success: false, message: 'Route not found', path: req.path });
+});
+
+// ── Global error handler ──────────────────────────────────────────────────────
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, _next) => {
+    _errorCount++;
     console.error('❌ Error:', err.message);
     res.status(err.status || 500).json({
         success: false,
         message: err.message || 'Internal server error',
-        ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+        ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
     });
 });
 
-// ============================================
-// 4. START SERVER
-// ============================================
-
+// ── Start ─────────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 5000;
 
-const startServer = async () => {
-    // Connect to database
-    await connectDB();
-    
-    // Start listening
-    const server = app.listen(PORT, () => {
-        console.log(`
-╔════════════════════════════════════════╗
-║  🚀 EmproiumVipani Backend Server      ║
-║  ✅ Running on port ${PORT}              ║
-║  📊 Environment: ${process.env.NODE_ENV}          ║
-╚════════════════════════════════════════╝
-        `);
-    });
+const eventQueue = require('./services/eventQueue');
+const jarvis     = require('./ai/jarvis');
 
-    // Graceful shutdown
-    process.on('SIGTERM', () => {
-        console.log('⚠️ SIGTERM received, shutting down gracefully');
-        server.close(() => {
-            console.log('✅ Server closed');
-            mongoose.connection.close();
-            process.exit(0);
-        });
-    });
-};
+eventQueue.initialize();
+jarvis.initialize();
 
-startServer().catch(err => {
-    console.error('❌ Failed to start server:', err);
-    process.exit(1);
+const server = app.listen(PORT, () => {
+    console.log(`
+╔═══════════════════════════════════════╗
+║  🚀 EmporiumVipani Server             ║
+║  ✅ Running on port ${PORT}             ║
+║  📊 Environment: ${process.env.NODE_ENV || 'development'}      ║
+╚═══════════════════════════════════════╝
+    `);
 });
 
+process.on('SIGTERM', () => {
+    console.log('⚠️ SIGTERM — shutting down gracefully');
+    server.close(() => { console.log('✅ Server closed'); process.exit(0); });
+});
+
+// Expose server handle so integration tests can close it cleanly
+app._server = server;
 module.exports = app;

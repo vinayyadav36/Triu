@@ -1,0 +1,48 @@
+[
+  {
+    "id": "915bbd37-e9c9-4883-88ee-06f04b156d6d",
+    "name": "Admin",
+    "email": "admin@triu.com",
+    "phone": "9999999999",
+    "passwordHash": "$2a$10$QbXkWPeQt1O2J.Gj.DkXh.DPnbjDxDUvrusauYU4hcPvfRP/7PoNK",
+    "role": "admin",
+    "status": "active",
+    "createdAt": "2026-04-11T09:45:20.385Z",
+    "updatedAt": "2026-04-11T10:09:05.586Z",
+    "seller": null,
+    "orders": [],
+    "wishlist": [],
+    "lastLogin": "2026-04-11T10:09:05.586Z"
+  },
+  {
+    "id": "3fbe8ba1-7263-48b2-a262-a896538b79cf",
+    "name": "Test Buyer",
+    "email": "buyer@test.com",
+    "phone": "9876543210",
+    "passwordHash": "$2a$10$k8BzS88yaUydcMDQOHC3ee/zfRPzeLiQPry66cYlHGMfBWe6O6ZFO",
+    "role": "seller",
+    "status": "active",
+    "seller": {
+      "businessName": "Test Shop",
+      "description": "Quality products",
+      "gstNumber": "29ABCDE1234F1Z5",
+      "panNumber": "ABCDE1234F",
+      "category": "general",
+      "bankAccount": null,
+      "phone": "9876543210",
+      "address": null,
+      "status": "pending",
+      "verified": false,
+      "appliedAt": "2026-04-11T10:09:05.763Z",
+      "approvedAt": null
+    },
+    "orders": [
+      "f3da105c-c521-421a-b685-186dd0be2c6d"
+    ],
+    "wishlist": [],
+    "address": null,
+    "lastLogin": "2026-04-11T10:09:05.747Z",
+    "createdAt": "2026-04-11T10:08:26.264Z",
+    "updatedAt": "2026-04-11T10:09:05.763Z"
+  }
+]

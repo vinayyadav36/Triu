@@ -1776,134 +1776,121 @@
   </div>
 
   <!-- ============================================
-       AUTH MODAL (OTP + SAFE KEY)
+       AUTH MODAL (Email + Password)
        ============================================ -->
   <div x-show="store.modals.login"
        x-transition.opacity
+       x-data="{ authMode: 'login', authLoading: false, authError: '' }"
        class="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.72)] backdrop-blur-[10px] px-4">
     <div class="modal-panel w-full max-w-md">
       <div class="px-4 py-3 border-b border-[#111827] flex items-center justify-between">
-        <div class="font-semibold text-sm">Sign in / Create account</div>
-        <button @click="closeLoginModal()" class="text-slate-400 hover:text-slate-100 text-lg font-light">&times;</button>
+        <div class="font-semibold text-sm" x-text="authMode === 'login' ? 'Sign In' : 'Create Account'"></div>
+        <button @click="store.closeModal('login')" class="text-slate-400 hover:text-slate-100 text-lg font-light">&times;</button>
       </div>
 
-      <div class="p-4 space-y-4 text-[11px]">
+      <div class="p-4 space-y-3 text-[11px]">
         <!-- Contextual auth reason -->
-        <template x-if="store.auth.authContext">
-          <div class="flex items-start gap-2 p-3 rounded-xl bg-emeraldCore/10 border border-emeraldCore/20 mb-3">
+        <template x-if="store.auth && store.auth.authContext">
+          <div class="flex items-start gap-2 p-3 rounded-xl bg-emeraldCore/10 border border-emeraldCore/20">
             <span class="text-emeraldCore text-sm shrink-0">🔐</span>
+            <p class="text-[11px] text-slate-200 font-semibold" x-text="'Sign in ' + store.auth.authContext"></p>
+          </div>
+        </template>
+
+        <!-- Error message -->
+        <template x-if="authError">
+          <div class="p-2 rounded-lg bg-red-900/30 border border-red-700/40 text-red-300 text-[10px]" x-text="authError"></div>
+        </template>
+
+        <!-- LOGIN FORM -->
+        <template x-if="authMode === 'login'">
+          <form @submit.prevent="
+            authError = '';
+            authLoading = true;
+            handleLogin($el.querySelector('#login-email').value, $el.querySelector('#login-password').value)
+              .catch(e => { authError = e.message || 'Login failed'; })
+              .finally(() => { authLoading = false; })
+          " class="space-y-3">
             <div>
-              <p class="text-[11px] text-slate-200 font-semibold" x-text="'Sign in ' + store.auth.authContext"></p>
-              <p class="text-[10px] text-slate-400 mt-0.5">Quick OTP verification — your cart and data are saved.</p>
+              <label for="login-email" class="block text-[11px] font-semibold text-slate-200 mb-1">Email</label>
+              <input id="login-email" name="email" type="email" autocomplete="email" required
+                placeholder="you@example.com"
+                class="rounded-full border border-[#374151] bg-black/70 px-3 py-2 text-[11px] text-slate-100 w-full" />
             </div>
-          </div>
-        </template>
-        <!-- Step 1: Identifier -->
-        <div class="space-y-2">
-          <label for="auth-identifier" class="block text-[11px] font-semibold text-slate-200 mb-1">
-            Email or phone number
-          </label>
-          <input
-            x-ref="authIdentifier"
-            id="auth-identifier"
-            name="identifier"
-            type="text"
-            autocomplete="email"
-            placeholder="you@example.com or +91 98765 43210"
-            class="rounded-full border border-[#374151] bg-black/70 px-3 py-2 text-[11px] text-slate-100 w-full" />
-          <button
-            type="button"
-            @click="window.handleAuthRequestOtp.call($data)"
-            class="btn btn-primary w-full mt-2 text-[11px]">
-            Send OTP
-          </button>
-        </div>
-
-        <!-- Step 2: OTP -->
-        <template x-if="store.auth.otpStage === 'awaiting_otp'">
-          <div class="space-y-2 mt-2">
-            <label for="auth-otp-code" class="block text-[11px] font-semibold text-slate-200 mb-1">
-              Enter OTP
-            </label>
-            <input
-              x-ref="authOtpCode"
-              id="auth-otp-code"
-              name="otpCode"
-              type="text"
-              inputmode="numeric"
-              autocomplete="one-time-code"
-              maxlength="6"
-              placeholder="6-digit code"
-              class="rounded-full border border-[#374151] bg-black/70 px-3 py-2 text-[11px] text-slate-100 w-full" />
-            <button
-              type="button"
-              @click="window.handleAuthVerifyOtp.call($data)"
-              class="btn btn-primary w-full mt-2 text-[11px]">
-              Verify OTP
+            <div>
+              <label for="login-password" class="block text-[11px] font-semibold text-slate-200 mb-1">Password</label>
+              <input id="login-password" name="password" type="password" autocomplete="current-password" required
+                placeholder="••••••••"
+                class="rounded-full border border-[#374151] bg-black/70 px-3 py-2 text-[11px] text-slate-100 w-full" />
+            </div>
+            <button type="submit" :disabled="authLoading"
+              class="btn btn-primary w-full text-[11px]"
+              x-text="authLoading ? 'Signing in…' : 'Sign In'">
             </button>
-          </div>
+            <p class="text-center text-[10px] text-slate-400 mt-1">
+              New here?
+              <button type="button" @click="authMode = 'register'; authError = ''"
+                class="text-emeraldSoft underline">Register</button>
+            </p>
+          </form>
         </template>
 
-        <!-- Step 3: Set key (first time) -->
-        <template x-if="store.auth.otpStage === 'set_key'">
-          <div class="space-y-2 mt-2">
-            <label for="auth-key" class="block text-[11px] font-semibold text-slate-200 mb-1">
-              Create your private key
-            </label>
-            <input
-              x-ref="authKey"
-              id="auth-key"
-              name="key"
-              type="password"
-              autocomplete="new-password"
-              placeholder="A strong key you will remember"
-              class="rounded-full border border-[#374151] bg-black/70 px-3 py-2 text-[11px] text-slate-100 w-full" />
-            <label for="auth-key-confirm" class="block text-[11px] font-semibold text-slate-200 mb-1 mt-2">
-              Confirm key
-            </label>
-            <input
-              x-ref="authKeyConfirm"
-              id="auth-key-confirm"
-              name="keyConfirm"
-              type="password"
-              autocomplete="new-password"
-              placeholder="Confirm key"
-              class="rounded-full border border-[#374151] bg-black/70 px-3 py-2 text-[11px] text-slate-100 w-full" />
-            <button
-              type="button"
-              @click="window.handleAuthSetKey.call($data)"
-              class="btn btn-primary w-full mt-2 text-[11px]">
-              Save key & continue
+        <!-- REGISTER FORM -->
+        <template x-if="authMode === 'register'">
+          <form @submit.prevent="
+            authError = '';
+            const f = $el;
+            authLoading = true;
+            handleRegister(
+              f.querySelector('#reg-name').value,
+              f.querySelector('#reg-email').value,
+              f.querySelector('#reg-phone').value,
+              f.querySelector('#reg-password').value,
+              f.querySelector('#reg-password-confirm').value
+            ).catch(e => { authError = e.message || 'Registration failed'; })
+             .finally(() => { authLoading = false; })
+          " class="space-y-3">
+            <div>
+              <label for="reg-name" class="block text-[11px] font-semibold text-slate-200 mb-1">Full Name</label>
+              <input id="reg-name" name="name" type="text" autocomplete="name" required
+                placeholder="Your name"
+                class="rounded-full border border-[#374151] bg-black/70 px-3 py-2 text-[11px] text-slate-100 w-full" />
+            </div>
+            <div>
+              <label for="reg-email" class="block text-[11px] font-semibold text-slate-200 mb-1">Email</label>
+              <input id="reg-email" name="email" type="email" autocomplete="email" required
+                placeholder="you@example.com"
+                class="rounded-full border border-[#374151] bg-black/70 px-3 py-2 text-[11px] text-slate-100 w-full" />
+            </div>
+            <div>
+              <label for="reg-phone" class="block text-[11px] font-semibold text-slate-200 mb-1">Phone</label>
+              <input id="reg-phone" name="phone" type="tel" autocomplete="tel" required
+                placeholder="+91 98765 43210"
+                class="rounded-full border border-[#374151] bg-black/70 px-3 py-2 text-[11px] text-slate-100 w-full" />
+            </div>
+            <div>
+              <label for="reg-password" class="block text-[11px] font-semibold text-slate-200 mb-1">Password</label>
+              <input id="reg-password" name="password" type="password" autocomplete="new-password" required
+                placeholder="Min. 6 characters"
+                class="rounded-full border border-[#374151] bg-black/70 px-3 py-2 text-[11px] text-slate-100 w-full" />
+            </div>
+            <div>
+              <label for="reg-password-confirm" class="block text-[11px] font-semibold text-slate-200 mb-1">Confirm Password</label>
+              <input id="reg-password-confirm" name="passwordConfirm" type="password" autocomplete="new-password" required
+                placeholder="Repeat password"
+                class="rounded-full border border-[#374151] bg-black/70 px-3 py-2 text-[11px] text-slate-100 w-full" />
+            </div>
+            <button type="submit" :disabled="authLoading"
+              class="btn btn-primary w-full text-[11px]"
+              x-text="authLoading ? 'Creating account…' : 'Create Account'">
             </button>
-          </div>
+            <p class="text-center text-[10px] text-slate-400 mt-1">
+              Already have an account?
+              <button type="button" @click="authMode = 'login'; authError = ''"
+                class="text-emeraldSoft underline">Sign In</button>
+            </p>
+          </form>
         </template>
-
-        <!-- Step 4: Existing user login with key -->
-        <template x-if="store.auth.otpStage === 'login_with_key'">
-          <div class="space-y-2 mt-2">
-            <label for="auth-existing-key" class="block text-[11px] font-semibold text-slate-200 mb-1">
-              Enter your private key
-            </label>
-            <input
-              x-ref="authExistingKey"
-              id="auth-existing-key"
-              name="existingKey"
-              type="password"
-              autocomplete="current-password"
-              placeholder="Your private key"
-              class="rounded-full border border-[#374151] bg-black/70 px-3 py-2 text-[11px] text-slate-100 w-full" />
-            <button
-              type="button"
-              @click="window.handleAuthLoginWithKey.call($data)"
-              class="btn btn-primary w-full mt-2 text-[11px]">
-              Log in
-            </button>
-          </div>
-        </template>
-
-        <div class="text-[10px] text-slate-500 mt-3">
-          We use OTP plus a private key instead of traditional passwords. Your key is salted, hashed, and stored only on the server.
-        </div>
       </div>
     </div>
   </div>

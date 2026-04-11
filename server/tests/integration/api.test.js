@@ -1,51 +1,127 @@
 'use strict';
 /**
- * Integration tests for the Auth API routes using MongoDB Memory Server.
- * Tests run against real Express routes with a real (in-memory) Mongoose connection.
+ * Integration tests for the API routes using the JSON DB layer.
+ * No MongoDB or external services required.
  */
 
 const request = require('supertest');
-const mongoose = require('mongoose');
-const { MongoMemoryServer } = require('mongodb-memory-server');
+const path    = require('path');
+const fs      = require('fs');
 
-let mongoServer;
+// Point DB to a temp directory so tests don't corrupt production data
+const TMP_DB = path.join('/tmp', `triu-test-db-${process.pid}`);
+fs.mkdirSync(TMP_DB, { recursive: true });
+
+// Patch jsonDB path BEFORE requiring any routes
+process.env.TRIU_DB_DIR  = TMP_DB;
+process.env.JWT_SECRET   = 'integration-test-secret';
+process.env.JWT_EXPIRE   = '1h';
+process.env.NODE_ENV     = 'test';
+process.env.CLIENT_URL   = '*';
+
+// Seed empty collections
+['users','products','orders','gst','ledger','invoices','settlements','events'].forEach(col => {
+  fs.writeFileSync(path.join(TMP_DB, `${col}.json`), '[]');
+});
+
 let app;
 
-beforeAll(async () => {
-  // Start in-memory MongoDB
-  mongoServer = await MongoMemoryServer.create();
-  const uri = mongoServer.getUri();
-  process.env.MONGODB_URI = uri;
-  process.env.JWT_SECRET  = 'integration-test-secret';
-  process.env.NODE_ENV    = 'test';
-
-  // Import app after env vars are set
+beforeAll(() => {
   app = require('../../server');
-  await mongoose.connect(uri);
-}, 30_000);
+});
 
-afterAll(async () => {
-  await mongoose.disconnect();
-  await mongoServer.stop();
-  // Close Express server if it exposes a close method
-  if (app && typeof app.close === 'function') app.close();
-}, 15_000);
-
-afterEach(async () => {
-  // Clean up all collections between tests
-  const collections = mongoose.connection.collections;
-  for (const key in collections) {
-    await collections[key].deleteMany({});
+afterAll(() => {
+  // Clean up temp DB
+  try { fs.rmSync(TMP_DB, { recursive: true, force: true }); } catch {}
+  if (app && app._server && typeof app._server.close === 'function') {
+    app._server.close();
   }
 });
 
-// ─── Health check ─────────────────────────────────────────────────────────────
+// Helper: register + get token
+async function registerUser(overrides = {}) {
+  const data = {
+    name: 'Test User',
+    email: `testuser_${Date.now()}@example.com`,
+    phone: '9876543210',
+    password: 'Test@123',
+    passwordConfirm: 'Test@123',
+    ...overrides,
+  };
+  const res = await request(app).post('/api/auth/register').send(data);
+  return { token: res.body.token, user: res.body.user, data };
+}
+
+// ─── Health ──────────────────────────────────────────────────────────────────
 
 describe('GET /api/health', () => {
   test('returns 200 with status ok', async () => {
     const res = await request(app).get('/api/health');
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('ok');
+  });
+});
+
+// ─── Auth ─────────────────────────────────────────────────────────────────────
+
+describe('POST /api/auth/register', () => {
+  test('creates a new user and returns token', async () => {
+    const res = await request(app).post('/api/auth/register').send({
+      name: 'New User',
+      email: 'newuser@example.com',
+      phone: '9876543210',
+      password: 'Pass@123',
+      passwordConfirm: 'Pass@123',
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.success).toBe(true);
+    expect(res.body.token).toBeTruthy();
+    expect(res.body.user.passwordHash).toBeUndefined();
+  });
+
+  test('rejects duplicate email with 409', async () => {
+    await request(app).post('/api/auth/register').send({
+      name: 'Dup User',
+      email: 'dup@example.com',
+      phone: '9876543210',
+      password: 'Pass@123',
+      passwordConfirm: 'Pass@123',
+    });
+    const res = await request(app).post('/api/auth/register').send({
+      name: 'Dup User 2',
+      email: 'dup@example.com',
+      phone: '9876543210',
+      password: 'Pass@123',
+      passwordConfirm: 'Pass@123',
+    });
+    expect(res.status).toBe(409);
+  });
+
+  test('rejects mismatched passwords', async () => {
+    const res = await request(app).post('/api/auth/register').send({
+      name: 'X', email: 'x@x.com', phone: '1234567890',
+      password: 'abc123', passwordConfirm: 'abc456',
+    });
+    expect(res.status).toBe(400);
+  });
+});
+
+describe('POST /api/auth/login', () => {
+  test('returns token for valid credentials', async () => {
+    const { data } = await registerUser({ email: 'login_test@example.com' });
+    const res = await request(app).post('/api/auth/login').send({
+      email: data.email, password: data.password,
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.token).toBeTruthy();
+  });
+
+  test('rejects wrong password with 401', async () => {
+    const { data } = await registerUser({ email: 'wrong_pw@example.com' });
+    const res = await request(app).post('/api/auth/login').send({
+      email: data.email, password: 'wrongpassword',
+    });
+    expect(res.status).toBe(401);
   });
 });
 
@@ -60,7 +136,7 @@ describe('GET /api/products', () => {
   });
 
   test('accepts search query param', async () => {
-    const res = await request(app).get('/api/products?search=test');
+    const res = await request(app).get('/api/products?search=organic');
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
   });
@@ -72,46 +148,11 @@ describe('GET /api/products', () => {
   });
 });
 
-// ─── OTP auth flow ─────────────────────────────────────────────────────────────
+// ─── Protected routes ─────────────────────────────────────────────────────────
 
-describe('POST /api/auth/request-otp', () => {
-  test('rejects missing identifier with 400', async () => {
-    const res = await request(app)
-      .post('/api/auth/request-otp')
-      .send({});
-    expect(res.status).toBe(400);
-  });
-
-  test('accepts valid email identifier', async () => {
-    const res = await request(app)
-      .post('/api/auth/request-otp')
-      .send({ identifier: 'test@example.com', purpose: 'login' });
-    // Either 200 (OTP sent) or 503 (SMS provider not configured in test)
-    expect([200, 503, 500]).toContain(res.status);
-    if (res.status === 200) {
-      expect(res.body.success).toBe(true);
-      expect(res.body.requestId).toBeDefined();
-    }
-  });
-});
-
-// ─── Protected routes require auth ───────────────────────────────────────────
-
-describe('Protected routes require JWT', () => {
+describe('Protected routes (no token)', () => {
   test('GET /api/orders returns 401 without token', async () => {
     const res = await request(app).get('/api/orders');
-    expect(res.status).toBe(401);
-  });
-
-  test('POST /api/orders returns 401 without token', async () => {
-    const res = await request(app)
-      .post('/api/orders')
-      .send({ items: [], deliveryAddress: {} });
-    expect(res.status).toBe(401);
-  });
-
-  test('GET /api/admin/dashboard returns 401 without token', async () => {
-    const res = await request(app).get('/api/admin/dashboard');
     expect(res.status).toBe(401);
   });
 
@@ -121,19 +162,47 @@ describe('Protected routes require JWT', () => {
   });
 });
 
-// ─── Input validation ─────────────────────────────────────────────────────────
+// ─── GST ──────────────────────────────────────────────────────────────────────
 
-describe('Input validation', () => {
-  test('POST /api/orders with empty items returns 401 (auth required first)', async () => {
-    const res = await request(app)
-      .post('/api/orders')
-      .send({ items: [], deliveryAddress: { street: '1 Main St', city: 'Delhi' } });
-    expect(res.status).toBe(401); // Auth required before validation
+describe('POST /api/gst/calculate', () => {
+  test('calculates inter-state GST correctly', async () => {
+    const res = await request(app).post('/api/gst/calculate').send({
+      amount: 1000, hsnCode: '8518',
+      sellerState: 'Maharashtra', buyerState: 'Karnataka',
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.data.igst).toBe(180);
+    expect(res.body.data.cgst).toBe(0);
   });
 
-  test('search query is sanitised (no injection)', async () => {
-    // Attempt ReDoS / regex injection
-    const res = await request(app).get('/api/products?search=' + encodeURIComponent('.*'));
-    expect(res.status).toBe(200); // Should not crash
+  test('calculates intra-state GST correctly', async () => {
+    const res = await request(app).post('/api/gst/calculate').send({
+      amount: 1000, hsnCode: '8518',
+      sellerState: 'Maharashtra', buyerState: 'Maharashtra',
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.data.cgst).toBe(90);
+    expect(res.body.data.sgst).toBe(90);
+    expect(res.body.data.igst).toBe(0);
+  });
+});
+
+// ─── Jarvis AI ───────────────────────────────────────────────────────────────
+
+describe('POST /api/jarvis/ask', () => {
+  test('returns a response with intent for authenticated user', async () => {
+    const { token } = await registerUser({ email: 'jarvis_test@example.com' });
+    const res = await request(app)
+      .post('/api/jarvis/ask')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ query: 'show me trending products' });
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.intent).toBeTruthy();
+  });
+
+  test('returns 401 without token', async () => {
+    const res = await request(app).post('/api/jarvis/ask').send({ query: 'test' });
+    expect(res.status).toBe(401);
   });
 });

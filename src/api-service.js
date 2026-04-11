@@ -484,6 +484,55 @@ class APIService {
         });
         return this.request('GET', `/products?${params}`);
     }
+
+    // ── Jarvis AI ──────────────────────────────────────────────────────────────
+    async askJarvis(query, context = {}) {
+        return this.request('POST', '/jarvis/ask', { query, context });
+    }
+
+    async getJarvisAlerts() {
+        return this.request('GET', '/jarvis/alerts');
+    }
+
+    async getRecommendations() {
+        return this.request('GET', `/jarvis/recommendations/${this.getUserId()}`);
+    }
+
+    async getTrendingProducts() {
+        return this.request('GET', '/jarvis/trending');
+    }
+
+    getUserId() {
+        try {
+            const token = this.getToken();
+            if (!token) return null;
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            return payload.userId;
+        } catch { return null; }
+    }
+
+    // ── GST ────────────────────────────────────────────────────────────────────
+    async getGSTRate(hsnCode) {
+        return this.request('GET', `/gst/rate/${hsnCode}`);
+    }
+
+    async calculateGST(amount, hsnCode, sellerState, buyerState) {
+        return this.request('POST', '/gst/calculate', { amount, hsnCode, sellerState, buyerState });
+    }
+
+    async getGSTReturn(sellerId, month, year) {
+        return this.request('GET', `/gst/return/${sellerId}/${month}/${year}`);
+    }
+
+    // ── Ledger ─────────────────────────────────────────────────────────────────
+    async getLedgerStatement(accountId, fromDate, toDate) {
+        const params = new URLSearchParams({ fromDate, toDate }).toString();
+        return this.request('GET', `/ledger/statement/${accountId}?${params}`);
+    }
+
+    async triggerSettlement(sellerId) {
+        return this.request('POST', `/ledger/settlement/${sellerId}`);
+    }
 }
 
 // Create global instance

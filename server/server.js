@@ -26,7 +26,18 @@ if (process.env.SENTRY_DSN) {
 
 // ── CORS ──────────────────────────────────────────────────────────────────────
 app.use(cors({
-    origin:         process.env.CLIENT_URL || '*',
+    origin: (origin, callback) => {
+        const allowed = (process.env.CLIENT_URL || '')
+            .split(',')
+            .map(s => s.trim())
+            .filter(Boolean);
+        // Allow same-origin (no origin header) and configured origins
+        if (!origin || allowed.length === 0 || allowed.includes(origin)) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
     credentials:    true,
     methods:        ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
@@ -51,7 +62,13 @@ const _startTime  = Date.now();
 
 app.use((req, _res, next) => { _requestCount++; next(); });
 
-app.get('/api/metrics', (_req, res) => {
+const metricsLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max:      30,
+    message:  { success: false, message: 'Too many requests to metrics endpoint' },
+});
+
+app.get('/api/metrics', metricsLimiter, (_req, res) => {
     const db = require('./utils/jsonDB');
     const uptime = Math.floor((Date.now() - _startTime) / 1000);
     res.set('Content-Type', 'text/plain; version=0.0.4');

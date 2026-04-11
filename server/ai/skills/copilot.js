@@ -35,8 +35,11 @@ function extractDate(query) {
 }
 
 function extractAmount(query) {
-    const match = query.match(/₹?\s*(\d[\d,]*\.?\d*)/);
-    return match ? parseFloat(match[1].replace(/,/g, '')) : null;
+    // Use a simple, non-backtracking pattern to avoid ReDoS
+    const match = query.match(/(?:₹\s*)?(\d{1,15}(?:\.\d{1,2})?)/);
+    if (!match) return null;
+    const num = parseFloat(match[1].replace(/,/g, ''));
+    return isNaN(num) ? null : num;
 }
 
 function extractLimit(query) {

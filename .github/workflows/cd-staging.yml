@@ -46,7 +46,7 @@ jobs:
           VITE_EMAILJS_TEMPLATE_ID: ${{ secrets.STAGING_EMAILJS_TEMPLATE_ID }}
 
       - name: Deploy frontend to GitHub Pages (staging path)
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: dist/
 

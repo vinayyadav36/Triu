@@ -1,0 +1,58 @@
+version: 2
+updates:
+  # Root npm (frontend + dev deps)
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Kolkata"
+    groups:
+      dev-deps:
+        patterns: ["eslint*", "vite*", "playwright*", "husky", "lint-staged"]
+      capacitor:
+        patterns: ["@capacitor/*"]
+    labels:
+      - "dependencies"
+      - "frontend"
+    commit-message:
+      prefix: "chore(deps)"
+    open-pull-requests-limit: 5
+
+  # Server npm (backend deps)
+  - package-ecosystem: "npm"
+    directory: "/server"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:30"
+      timezone: "Asia/Kolkata"
+    groups:
+      express-ecosystem:
+        patterns: ["express*", "cors", "dotenv", "express-rate-limit", "express-validator"]
+      security:
+        patterns: ["bcryptjs", "jsonwebtoken", "uuid"]
+      test-tools:
+        patterns: ["jest*", "supertest*"]
+    labels:
+      - "dependencies"
+      - "backend"
+    commit-message:
+      prefix: "chore(deps)"
+    open-pull-requests-limit: 5
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+      time: "09:00"
+      timezone: "Asia/Kolkata"
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "ci(deps)"
+    open-pull-requests-limit: 5

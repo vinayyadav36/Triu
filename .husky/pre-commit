@@ -1,0 +1,4 @@
+#!/bin/sh
+# Husky pre-commit hook — run lint-staged only
+# Tests run in CI (GitHub Actions matrix), not on every local commit
+npx lint-staged

@@ -116,8 +116,62 @@ jobs:
         if: success()
         run: echo "✅ Production deployment verified and healthy"
 
-      - name: Notify on failure
-        if: failure()
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Notification — Discord / Slack
+  # ─────────────────────────────────────────────────────────────────────────────
+  notify:
+    name: Notify — Deployment Status
+    runs-on: ubuntu-latest
+    needs: [deploy-production, smoke-production]
+    if: always()
+
+    steps:
+      - name: Send Discord notification
+        if: ${{ secrets.DISCORD_WEBHOOK_URL != '' }}
         run: |
-          echo "❌ Production smoke tests FAILED — investigate immediately"
-          # Add PagerDuty / Slack critical alert here
+          DEPLOY="${{ needs.deploy-production.result }}"
+          SMOKE="${{ needs.smoke-production.result }}"
+          if [[ "${DEPLOY}" == "success" && "${SMOKE}" == "success" ]]; then
+            COLOR=65280   # green
+            ICON="✅"
+            MSG="Production deployment succeeded and smoke tests passed."
+          elif [[ "${DEPLOY}" == "success" ]]; then
+            COLOR=16776960  # yellow
+            ICON="⚠️"
+            MSG="Deployment succeeded but smoke tests **${SMOKE}**."
+          else
+            COLOR=16711680  # red
+            ICON="❌"
+            MSG="Deployment **${DEPLOY}**. Immediate investigation required."
+          fi
+          curl -s -X POST "$DISCORD_WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"embeds\": [{
+                \"title\": \"${ICON} EmproiumVipani — Production Deploy\",
+                \"description\": \"${MSG}\n\n**Commit:** \`${{ github.sha }}\`\n**By:** ${{ github.actor }}\",
+                \"color\": ${COLOR},
+                \"timestamp\": \"$(date -u '+%Y-%m-%dT%H:%M:%SZ')\",
+                \"footer\": { \"text\": \"🎮 +50 XP deployment badge earned!\" }
+              }]
+            }"
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+
+      - name: Send Slack notification
+        if: ${{ secrets.SLACK_WEBHOOK_URL != '' }}
+        run: |
+          DEPLOY="${{ needs.deploy-production.result }}"
+          SMOKE="${{ needs.smoke-production.result }}"
+          if [[ "${DEPLOY}" == "success" && "${SMOKE}" == "success" ]]; then
+            EMOJI=":white_check_mark:"
+            MSG="Production deployment *succeeded* and smoke tests passed."
+          else
+            EMOJI=":x:"
+            MSG="Production deployment *${DEPLOY}* (smoke: ${SMOKE}). Check logs immediately."
+          fi
+          curl -s -X POST "$SLACK_WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d "{\"text\": \"${EMOJI} *EmproiumVipani Deploy* — ${MSG} Commit: \`${{ github.sha }}\` by ${{ github.actor }}\"}"
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

@@ -30,7 +30,11 @@
     "capacitor:sync": "npx cap sync",
     "capacitor:open": "npx cap open ios",
     "capacitor:android": "npx cap open android",
-    "pwa:generate": "node scripts/generate-pwa.js"
+    "pwa:generate": "node scripts/generate-pwa.js",
+    "prepare": "husky",
+    "seo:analyze": "node scripts/seo-analyzer.js",
+    "build:predict": "node scripts/build-predictor.js",
+    "chaos:test": "bash scripts/chaos-test.sh"
   },
   "dependencies": {
     "alpinejs": "^3.14.1"
@@ -42,6 +46,8 @@
     "@capacitor/ios": "^6.2.1",
     "@playwright/test": "^1.44.0",
     "eslint": "^8.57.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
     "vite": "^5.4.1"
   },
   "engines": {
@@ -55,5 +61,13 @@
   "volta": {
     "node": "20.12.2"
   },
-  "packageManager": "npm@10.5.2"
+  "packageManager": "npm@10.5.2",
+  "lint-staged": {
+    "src/**/*.js": [
+      "eslint --fix --max-warnings 50"
+    ],
+    "server/**/*.js": [
+      "eslint --fix --max-warnings 50"
+    ]
+  }
 }

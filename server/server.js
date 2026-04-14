@@ -24,6 +24,33 @@ if (process.env.SENTRY_DSN) {
     }
 }
 
+// ── Structured request logger ─────────────────────────────────────────────────
+const IS_TEST = process.env.NODE_ENV === 'test';
+
+app.use((req, res, next) => {
+    const start  = Date.now();
+    const reqId  = req.headers['x-request-id'] || require('crypto').randomBytes(6).toString('hex');
+
+    // Attach request ID for tracing through the request lifecycle
+    req.reqId = reqId;
+    res.setHeader('X-Request-Id', reqId);
+
+    res.on('finish', () => {
+        const ms     = Date.now() - start;
+        const status = res.statusCode;
+        const level  = status >= 500 ? 'ERROR' : status >= 400 ? 'WARN' : 'INFO';
+        // Skip noisy health/metrics logs in test
+        if (!IS_TEST || (status >= 400)) {
+            const line = `[${new Date().toISOString()}] [${level}] [${reqId}] ${req.method} ${req.path} ${status} ${ms}ms`;
+            if (level === 'ERROR') console.error(line);
+            else if (level === 'WARN') console.warn(line);
+            else if (req.path !== '/api/health') console.log(line);
+        }
+    });
+
+    next();
+});
+
 // ── CORS ──────────────────────────────────────────────────────────────────────
 app.use(cors({
     origin: (origin, callback) => {
@@ -110,6 +137,8 @@ app.use('/api/payments', require('./routes/payments'));
 app.use('/api/gst',      require('./routes/gst'));
 app.use('/api/ledger',   require('./routes/ledger'));
 app.use('/api/jarvis',   require('./routes/jarvis'));
+app.use('/api/billing',  require('./routes/billing'));
+app.use('/api/bots',     require('./routes/bots'));
 
 // ── Static frontend ───────────────────────────────────────────────────────────
 const distPath = path.join(__dirname, '..', 'dist');

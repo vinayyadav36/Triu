@@ -1,0 +1,139 @@
+name: Vercel — Preview Deployment
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: vercel-preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    name: Deploy Preview → Vercel
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Build frontend
+        run: npm run build
+        env:
+          VITE_API_URL: ${{ secrets.VITE_API_URL || 'https://api.emproiumvipani.com/api' }}
+          VITE_RAZORPAY_KEY_ID: ${{ secrets.VITE_RAZORPAY_KEY_ID || '' }}
+          VITE_EMAILJS_PUBLIC_KEY: ${{ secrets.VITE_EMAILJS_PUBLIC_KEY || '' }}
+          VITE_EMAILJS_SERVICE_ID: ${{ secrets.VITE_EMAILJS_SERVICE_ID || '' }}
+          VITE_EMAILJS_TEMPLATE_ID: ${{ secrets.VITE_EMAILJS_TEMPLATE_ID || '' }}
+
+      # Requires VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID secrets
+      - name: Deploy to Vercel (Preview)
+        id: deploy
+        if: ${{ secrets.VERCEL_TOKEN != '' }}
+        run: |
+          npm i -g vercel@latest
+          DEPLOYMENT_URL=$(vercel --token "$VERCEL_TOKEN" \
+            --build-env VITE_API_URL="${VITE_API_URL}" \
+            --yes 2>&1 | tail -1)
+          echo "url=${DEPLOYMENT_URL}" >> "$GITHUB_OUTPUT"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VITE_API_URL: ${{ secrets.VITE_API_URL || 'https://api.emproiumvipani.com/api' }}
+
+      # Post preview URL as a PR comment
+      - name: Comment Preview URL on PR
+        if: steps.deploy.outputs.url != ''
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const url = '${{ steps.deploy.outputs.url }}';
+            const body = [
+              '## 🚀 Vercel Preview Deployment',
+              '',
+              `| Field | Value |`,
+              `|---|---|`,
+              `| 🔗 Preview URL | [${url}](${url}) |`,
+              `| 📦 Commit | ${{ github.sha }} |`,
+              `| 🌿 Branch | \`${{ github.head_ref }}\` |`,
+              `| ⏰ Deployed | ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST |`,
+              '',
+              '> This preview is automatically updated on each commit to this PR.',
+            ].join('\n');
+
+            // Find and update existing preview comment, or create a new one
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.data.find(c =>
+              c.user.type === 'Bot' && c.body.includes('Vercel Preview Deployment')
+            );
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+
+      # Fallback when VERCEL_TOKEN is not configured: report build-only success
+      - name: Report build success (no Vercel token)
+        if: ${{ secrets.VERCEL_TOKEN == '' }}
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const body = [
+              '## ✅ Frontend Build — Preview Ready',
+              '',
+              'The frontend built successfully on this PR.',
+              'To enable live Vercel preview URLs, add `VERCEL_TOKEN`, `VERCEL_ORG_ID`, and `VERCEL_PROJECT_ID` secrets to the repository.',
+              '',
+              `Commit: \`${{ github.sha }}\``,
+            ].join('\n');
+
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.data.find(c =>
+              c.user.type === 'Bot' && c.body.includes('Frontend Build')
+            );
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }

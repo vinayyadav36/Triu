@@ -39,11 +39,16 @@ jobs:
         run: npm run lint --prefix server || true
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # 2. BACKEND UNIT TESTS
+  # 2. BACKEND UNIT TESTS — matrix: Node 18 / 20 / 22 × ubuntu / windows
   # ─────────────────────────────────────────────────────────────────────────────
   test-unit:
-    name: Unit Tests
-    runs-on: ubuntu-latest
+    name: Unit Tests (Node ${{ matrix.node }} / ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['18', '20', '22']
+        os: [ubuntu-latest, windows-latest]
     defaults:
       run:
         working-directory: server
@@ -52,7 +57,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ matrix.node }}
           cache: 'npm'
           cache-dependency-path: server/package-lock.json
 
@@ -63,15 +68,18 @@ jobs:
         run: npm run test:unit
         env:
           NODE_ENV: test
-          JWT_SECRET: test-secret-key-for-ci
-          
+          SESSION_SECRET: test-session-secret-for-ci
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # 3. BACKEND INTEGRATION TESTS (MongoDB Memory Server)
+  # 3. BACKEND INTEGRATION TESTS — matrix: Node 18 / 20 / 22
   # ─────────────────────────────────────────────────────────────────────────────
   test-integration:
-    name: Integration Tests
+    name: Integration Tests (Node ${{ matrix.node }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['18', '20', '22']
     defaults:
       run:
         working-directory: server
@@ -80,7 +88,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ matrix.node }}
           cache: 'npm'
           cache-dependency-path: server/package-lock.json
 
@@ -91,20 +99,32 @@ jobs:
         run: npm run test:integration
         env:
           NODE_ENV: test
-          JWT_SECRET: test-secret-key-for-ci
+          SESSION_SECRET: test-session-secret-for-ci
+
+      - name: Upload coverage report
+        if: matrix.node == '20'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: server/coverage/
+          retention-days: 14
 
   # ─────────────────────────────────────────────────────────────────────────────
   # 4. FRONTEND BUILD
   # ─────────────────────────────────────────────────────────────────────────────
   build:
-    name: Build (Vite)
+    name: Build (Vite / Node ${{ matrix.node }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['18', '20', '22']
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ matrix.node }}
           cache: 'npm'
 
       - name: Install dependencies
@@ -120,6 +140,7 @@ jobs:
           VITE_EMAILJS_TEMPLATE_ID: ${{ secrets.VITE_EMAILJS_TEMPLATE_ID || '' }}
 
       - name: Upload build artifact
+        if: matrix.node == '20'
         uses: actions/upload-artifact@v4
         with:
           name: frontend-dist
@@ -127,7 +148,48 @@ jobs:
           retention-days: 7
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # 5. REPORT — gate summary visible on PR
+  # 5. SONARCLOUD — code quality analysis
+  # ─────────────────────────────────────────────────────────────────────────────
+  sonarcloud:
+    name: SonarCloud Analysis
+    runs-on: ubuntu-latest
+    # Only run on pushes/PRs to main to conserve SonarCloud quota
+    if: >
+      github.ref == 'refs/heads/main' ||
+      github.event_name == 'pull_request'
+    needs: [test-integration]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # SonarCloud needs full history for blame analysis
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install server deps + generate coverage
+        working-directory: server
+        run: |
+          npm ci
+          npm test -- --coverage --coverageDirectory=coverage || true
+        env:
+          NODE_ENV: test
+          SESSION_SECRET: sonar-test-secret
+
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarcloud-github-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.projectKey=vinayyadav36_Triu
+            -Dsonar.organization=vinayyadav36
+        continue-on-error: true   # Non-blocking until SONAR_TOKEN secret is configured
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # 6. REPORT — gate summary visible on PR
   # ─────────────────────────────────────────────────────────────────────────────
   ci-gate:
     name: CI Gate
@@ -144,4 +206,4 @@ jobs:
             echo "❌ One or more CI jobs failed"
             exit 1
           fi
-          echo "✅ All CI jobs passed"
+          echo "✅ All CI jobs passed (matrix: Node 18/20/22)"

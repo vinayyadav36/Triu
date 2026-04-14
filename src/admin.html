@@ -1248,5 +1248,271 @@ document.addEventListener('admin-refresh',()=>{
   document.querySelector('[x-data]')?._x_dataStack?.[0]?.reload?.();
 });
 </script>
+
+<!-- ═══════════════════════════════════════════════════════════
+     XP / BADGE GAMIFICATION SYSTEM
+     ═══════════════════════════════════════════════════════════ -->
+<div x-data="xpSystem()" x-init="init()" class="fixed bottom-0 left-0 right-0 z-50 pointer-events-none">
+
+  <!-- XP Toast Container -->
+  <div class="fixed bottom-20 right-4 flex flex-col gap-2 pointer-events-none" style="z-index:9999">
+    <template x-for="toast in toasts" :key="toast.id">
+      <div class="pointer-events-none px-4 py-2 rounded-lg text-sm font-mono font-bold"
+           style="background:rgba(0,20,0,0.93);border:1px solid #00ff41;color:#00ff41;
+                  text-shadow:0 0 6px rgba(0,255,65,0.8);
+                  box-shadow:0 4px 16px rgba(0,255,65,0.2);
+                  animation:toast-xp-in 0.3s ease-out">
+        <span x-text="toast.message"></span>
+      </div>
+    </template>
+  </div>
+
+  <!-- Floating XP Bar -->
+  <div class="pointer-events-auto mx-auto" style="max-width:900px;padding:0 1rem 0.5rem">
+    <div style="background:rgba(5,5,9,0.92);border:1px solid rgba(0,255,65,0.25);
+                border-radius:8px 8px 0 0;padding:8px 16px;
+                display:flex;align-items:center;gap:12px;
+                backdrop-filter:blur(8px)">
+
+      <!-- Level badge -->
+      <div style="background:rgba(0,255,65,0.1);border:1px solid rgba(0,255,65,0.4);
+                  border-radius:6px;padding:4px 10px;min-width:52px;text-align:center">
+        <div style="font-size:0.6rem;color:#4ade80;font-family:monospace;letter-spacing:1px">LVL</div>
+        <div style="font-size:1.1rem;font-weight:700;color:#00ff41;line-height:1;
+                    text-shadow:0 0 8px rgba(0,255,65,0.7);font-family:monospace"
+             x-text="level"></div>
+      </div>
+
+      <!-- Level name -->
+      <div style="font-size:0.7rem;color:#4ade80;font-family:monospace;min-width:70px"
+           x-text="levelName"></div>
+
+      <!-- XP Bar -->
+      <div style="flex:1">
+        <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+          <span style="font-size:0.65rem;color:#6b7280;font-family:monospace">XP</span>
+          <span style="font-size:0.65rem;color:#4ade80;font-family:monospace"
+                x-text="`${xp} / ${xpToNext}`"></span>
+        </div>
+        <div style="height:8px;background:#0f172a;border-radius:4px;overflow:hidden;
+                    border:1px solid rgba(255,255,255,0.05)">
+          <div style="height:100%;border-radius:4px;transition:width 0.6s cubic-bezier(.22,1,.36,1);
+                      background:linear-gradient(90deg,#00ff41,#00cfff);
+                      box-shadow:0 0 8px rgba(0,255,65,0.6)"
+               :style="`width:${Math.min(100, Math.round(xp / xpToNext * 100))}%`"></div>
+        </div>
+      </div>
+
+      <!-- Badge row (top 5) -->
+      <div style="display:flex;gap:6px;align-items:center">
+        <template x-for="b in badges.slice(0,5)" :key="b.id">
+          <div :title="b.name + ': ' + b.desc"
+               :style="`font-size:1.3rem;cursor:pointer;filter:${b.unlocked ? 'none' : 'grayscale(1) brightness(0.3)'};
+                        transition:transform .15s;`"
+               @mouseenter="$el.style.transform='scale(1.3)'"
+               @mouseleave="$el.style.transform='scale(1)'"
+               x-text="b.emoji"></div>
+        </template>
+        <!-- Open badge panel -->
+        <button @click="showBadgePanel=!showBadgePanel"
+                style="font-size:0.65rem;color:#4ade80;font-family:monospace;
+                       background:rgba(0,255,65,0.08);border:1px solid rgba(0,255,65,0.2);
+                       border-radius:4px;padding:2px 7px;cursor:pointer">
+          ALL
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Badge Showcase Panel -->
+  <div x-show="showBadgePanel" x-cloak @click.outside="showBadgePanel=false"
+       class="pointer-events-auto fixed bottom-20 right-4"
+       style="background:rgba(5,5,9,0.97);border:1px solid rgba(0,255,65,0.3);
+              border-radius:12px;padding:20px;width:340px;
+              box-shadow:0 8px 32px rgba(0,255,65,0.15);
+              font-family:monospace">
+
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <span style="color:#00ff41;font-size:0.85rem;font-weight:700;
+                   text-shadow:0 0 8px rgba(0,255,65,0.6)">🏆 ACHIEVEMENT BADGES</span>
+      <button @click="showBadgePanel=false"
+              style="color:#6b7280;font-size:1rem;cursor:pointer;background:none;border:none">✕</button>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px">
+      <template x-for="b in badges" :key="b.id">
+        <div style="text-align:center" :title="b.name + ': ' + b.desc">
+          <div :style="`font-size:1.8rem;filter:${b.unlocked ? 'none' : 'grayscale(1) brightness(0.25)'};
+                        transition:transform .15s;cursor:pointer`"
+               @mouseenter="$el.style.transform='scale(1.2)'"
+               @mouseleave="$el.style.transform='scale(1)'"
+               x-text="b.emoji"></div>
+          <div :style="`font-size:0.55rem;margin-top:3px;color:${b.unlocked ? '#4ade80' : '#374151'};
+                         overflow:hidden;text-overflow:ellipsis;white-space:nowrap`"
+               x-text="b.name"></div>
+        </div>
+      </template>
+    </div>
+
+    <div style="border-top:1px solid rgba(255,255,255,0.05);padding-top:10px;
+                display:flex;justify-content:space-between">
+      <span style="font-size:0.65rem;color:#6b7280">
+        Unlocked: <span style="color:#4ade80" x-text="badges.filter(b=>b.unlocked).length"></span>
+        / <span x-text="badges.length"></span>
+      </span>
+      <button @click="gainXP(50, 'Badge panel viewed!')"
+              style="font-size:0.65rem;color:#00ff41;background:rgba(0,255,65,0.08);
+                     border:1px solid rgba(0,255,65,0.2);border-radius:4px;
+                     padding:2px 8px;cursor:pointer">
+        +50 XP Demo
+      </button>
+    </div>
+  </div>
+
+</div>
+
+<style>
+@keyframes toast-xp-in {
+  from { opacity:0; transform:translateY(10px) scale(0.92); }
+  to   { opacity:1; transform:translateY(0)    scale(1); }
+}
+</style>
+
+<script>
+function xpSystem() {
+  return {
+    xp: 0, level: 1, xpToNext: 100,
+    badges: [], toasts: [], showBadgePanel: false,
+    _toastId: 0,
+
+    LEVEL_THRESHOLDS: [0, 100, 300, 700, 1500],
+    LEVEL_NAMES: ['Novice', 'Apprentice', 'Expert', 'Master', 'Legend'],
+
+    BADGE_CATALOGUE: [
+      { id:'first_login',   emoji:'🚀', name:'First Login',    desc:'Logged in for the first time',         xp: 50  },
+      { id:'ten_orders',    emoji:'📦', name:'Order Wrangler',  desc:'Processed 10 orders',                  xp: 100 },
+      { id:'seller_added',  emoji:'🏪', name:'Merchant King',   desc:'Added first seller',                   xp: 80  },
+      { id:'lv2',           emoji:'⭐', name:'Rising Star',     desc:'Reached Level 2',                      xp: 0   },
+      { id:'lv3',           emoji:'💫', name:'Power User',      desc:'Reached Level 3',                      xp: 0   },
+      { id:'lv4',           emoji:'🔥', name:'Elite Admin',     desc:'Reached Level 4',                      xp: 0   },
+      { id:'lv5',           emoji:'👑', name:'Legend',          desc:'Reached Level 5',                      xp: 0   },
+      { id:'night_owl',     emoji:'🦉', name:'Night Owl',       desc:'Used admin panel after midnight',      xp: 25  },
+      { id:'speed_demon',   emoji:'⚡', name:'Speed Demon',     desc:'Completed 5 actions in 60 seconds',    xp: 75  },
+      { id:'data_wizard',   emoji:'🧙', name:'Data Wizard',     desc:'Generated 10 reports',                 xp: 120 },
+      { id:'streak_7',      emoji:'🔗', name:'7-Day Streak',    desc:'Logged in 7 days in a row',            xp: 200 },
+      { id:'gst_filed',     emoji:'📋', name:'GST Champion',    desc:'Filed a GST return',                   xp: 150 },
+    ],
+
+    get levelName() {
+      return this.LEVEL_NAMES[this.level - 1] || 'Legend';
+    },
+
+    init() {
+      // Load from localStorage
+      const saved = (() => { try { return JSON.parse(localStorage.getItem('ev_xp_state') || '{}'); } catch { return {}; } })();
+      this.xp    = saved.xp    || 0;
+      this.level = saved.level || 1;
+      this._recalcLevel();
+
+      // Init badges with unlock state
+      const unlockedSet = new Set(saved.unlockedBadges || []);
+      this.badges = this.BADGE_CATALOGUE.map(b => ({ ...b, unlocked: unlockedSet.has(b.id) }));
+
+      // Auto-grant first-login badge
+      if (!unlockedSet.has('first_login')) {
+        setTimeout(() => this.gainXP(50, '🚀 First Login!', 'first_login'), 1500);
+      }
+
+      // Night owl check
+      const hour = new Date().getHours();
+      if ((hour >= 0 && hour < 5) && !unlockedSet.has('night_owl')) {
+        setTimeout(() => this.gainXP(25, '🦉 Night Owl!', 'night_owl'), 2500);
+      }
+    },
+
+    gainXP(amount, reason, badgeId) {
+      this.xp += amount;
+      this._showToast(`+${amount} XP  ${reason || ''}`);
+
+      if (badgeId) this._unlockBadge(badgeId);
+
+      const prevLevel = this.level;
+      this._recalcLevel();
+      if (this.level > prevLevel) {
+        this._showToast(`🎉 LEVEL UP! You are now Level ${this.level} — ${this.levelName}!`);
+        const lvlBadge = `lv${this.level}`;
+        if (this.badges.find(b => b.id === lvlBadge)) this._unlockBadge(lvlBadge);
+        if (typeof window.SoundFX !== 'undefined') window.SoundFX.success();
+      } else {
+        if (typeof window.SoundFX !== 'undefined') window.SoundFX.click();
+      }
+      this._save();
+    },
+
+    _recalcLevel() {
+      const th = this.LEVEL_THRESHOLDS;
+      let lv = 1;
+      for (let i = th.length - 1; i >= 0; i--) {
+        if (this.xp >= th[i]) { lv = i + 1; break; }
+      }
+      this.level    = Math.min(lv, this.LEVEL_NAMES.length);
+      const next    = th[this.level] || th[th.length - 1] * 2;
+      const current = th[this.level - 1] || 0;
+      this.xpToNext = next - current;
+      // Adjust displayed XP to be relative to current level
+      this._xpInLevel = this.xp - current;
+    },
+
+    _unlockBadge(badgeId) {
+      const badge = this.badges.find(b => b.id === badgeId);
+      if (badge && !badge.unlocked) {
+        badge.unlocked = true;
+        this._showToast(`🏅 Badge Unlocked: ${badge.name} ${badge.emoji}`);
+        if (typeof window.SoundFX !== 'undefined') window.SoundFX.badge();
+      }
+    },
+
+    _showToast(message) {
+      const id = ++this._toastId;
+      this.toasts.push({ id, message });
+      setTimeout(() => { this.toasts = this.toasts.filter(t => t.id !== id); }, 3000);
+    },
+
+    _save() {
+      try {
+        localStorage.setItem('ev_xp_state', JSON.stringify({
+          xp: this.xp,
+          level: this.level,
+          unlockedBadges: this.badges.filter(b => b.unlocked).map(b => b.id),
+        }));
+      } catch { /* storage unavailable */ }
+    },
+  };
+}
+
+// Hook XP into admin actions
+document.addEventListener('DOMContentLoaded', () => {
+  // Intercept API calls to award XP for actions
+  const origFetch = window.fetch;
+  window.fetch = async (...args) => {
+    const res = await origFetch(...args);
+    try {
+      const url    = typeof args[0] === 'string' ? args[0] : (args[0].url || '');
+      const method = (args[1]?.method || 'GET').toUpperCase();
+      if (res.ok && method !== 'GET') {
+        const xpSys = document.querySelector('[x-data*="xpSystem"]')?._x_dataStack?.[0];
+        if (xpSys) {
+          if (url.includes('/orders')) xpSys.gainXP(10, '📦 Order processed');
+          else if (url.includes('/sellers')) xpSys.gainXP(15, '🏪 Seller action');
+          else if (url.includes('/products')) xpSys.gainXP(8, '🛍️ Product updated');
+          else if (url.includes('/admin')) xpSys.gainXP(5, '⚙️ Admin action');
+        }
+      }
+    } catch { /* non-critical */ }
+    return res;
+  };
+});
+</script>
 </body>
 </html>

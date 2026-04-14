@@ -1,0 +1,147 @@
+# ============================================================
+# EmproiumVipani — Full-Stack Docker Compose
+# Services: backend API · PostgreSQL · Redis · Prometheus · Grafana
+# ============================================================
+
+version: "3.9"
+
+# ── Shared network ────────────────────────────────────────────
+networks:
+  vipani_net:
+    driver: bridge
+
+# ── Named volumes ─────────────────────────────────────────────
+volumes:
+  postgres_data:
+  redis_data:
+  prometheus_data:
+  grafana_data:
+
+services:
+
+  # ── 1. Backend API (Node.js/Express) ────────────────────────
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: vipani_api
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    networks:
+      - vipani_net
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      CLIENT_URL: "${CLIENT_URL:-http://localhost:5173}"
+      # JWT
+      JWT_SECRET: "${JWT_SECRET:-change-me-in-production}"
+      JWT_REFRESH_SECRET: "${JWT_REFRESH_SECRET:-change-refresh-secret-in-production}"
+      JWT_EXPIRE: "15m"
+      JWT_REFRESH_EXPIRE: "7d"
+      # PostgreSQL
+      POSTGRES_URL: "postgresql://vipani:${POSTGRES_PASSWORD:-vipanipass}@postgres:5432/vipani_db"
+      # Redis
+      REDIS_URL: "redis://redis:6379"
+      # MailerSend
+      MAILERSEND_API_KEY: "${MAILERSEND_API_KEY:-}"
+      MAILERSEND_FROM_EMAIL: "${MAILERSEND_FROM_EMAIL:-noreply@emproiumvipani.com}"
+      # Razorpay
+      RAZORPAY_KEY_ID: "${RAZORPAY_KEY_ID:-}"
+      RAZORPAY_KEY_SECRET: "${RAZORPAY_KEY_SECRET:-}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:5000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    volumes:
+      - ../server/db:/app/db    # persist JSON DB between restarts
+
+  # ── 2. PostgreSQL ─────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: vipani_postgres
+    restart: unless-stopped
+    networks:
+      - vipani_net
+    environment:
+      POSTGRES_USER: vipani
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-vipanipass}"
+      POSTGRES_DB: vipani_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../db/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - ../db/seed.sql:/docker-entrypoint-initdb.d/02_seed.sql:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vipani -d vipani_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── 3. Redis (sessions + cache) ──────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: vipani_redis
+    restart: unless-stopped
+    networks:
+      - vipani_net
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ── 4. Prometheus (metrics scraper) ─────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: vipani_prometheus
+    restart: unless-stopped
+    networks:
+      - vipani_net
+    ports:
+      - "9090:9090"
+    volumes:
+      - prometheus_data:/prometheus
+      - ../docker/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=30d"
+
+  # ── 5. Grafana (retro dashboards) ────────────────────────────
+  grafana:
+    image: grafana/grafana:10.3.0
+    container_name: vipani_grafana
+    restart: unless-stopped
+    networks:
+      - vipani_net
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_PASSWORD:-vipani_grafana}"
+      GF_SERVER_ROOT_URL: "http://localhost:3000"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: "/var/lib/grafana/dashboards/vipani.json"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ../docker/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ../docker/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus

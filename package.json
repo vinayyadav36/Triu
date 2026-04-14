@@ -37,7 +37,7 @@
     "chaos:test": "bash scripts/chaos-test.sh"
   },
   "dependencies": {
-    "alpinejs": "^3.14.1"
+    "alpinejs": "^3.15.11"
   },
   "devDependencies": {
     "@capacitor/android": "^6.2.1",

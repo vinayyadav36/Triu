@@ -16,7 +16,19 @@
       "destination": "/supplier.html"
     },
     {
-      "source": "/((?!.*\\..*|admin|supplier).*)",
+      "source": "/partner",
+      "destination": "/partner.html"
+    },
+    {
+      "source": "/privacy",
+      "destination": "/legal/privacy.html"
+    },
+    {
+      "source": "/terms",
+      "destination": "/legal/terms.html"
+    },
+    {
+      "source": "/((?!.*\\..*|admin|supplier|partner|privacy|terms).*)",
       "destination": "/index.html"
     }
   ],

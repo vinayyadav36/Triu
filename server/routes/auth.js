@@ -40,7 +40,9 @@ function generateOtp() {
 function purgeExpiredSessions() {
     try { db.deleteWhere('sessions', s => new Date(s.expiresAt) < new Date()); } catch { /* non-critical */ }
 }
-setInterval(purgeExpiredSessions, 60 * 60 * 1000); // every hour
+if (process.env.NODE_ENV !== 'test') {
+    setInterval(purgeExpiredSessions, 60 * 60 * 1000); // every hour
+}
 
 // ── Audit logger ──────────────────────────────────────────────────────────────
 function auditLog(action, userId, meta = {}) {

@@ -92,7 +92,10 @@ export default defineConfig({
       input: {
         main: resolve(__dirname, 'src/index.html'),
         admin: resolve(__dirname, 'src/admin.html'),
-        supplier: resolve(__dirname, 'src/supplier.html')
+        supplier: resolve(__dirname, 'src/supplier.html'),
+        partner: resolve(__dirname, 'src/partner.html'),
+        'legal/privacy': resolve(__dirname, 'src/legal/privacy.html'),
+        'legal/terms': resolve(__dirname, 'src/legal/terms.html')
       }
     }
   },

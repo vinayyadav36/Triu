@@ -8,12 +8,6 @@
 
 const BillingEngine = (() => {
 
-  // ── Load inventory master from memory / API ───────────────────
-  // In-browser context we rely on the global store or a passed catalog
-  function _getInventoryItem(productId, catalog = []) {
-    return catalog.find(i => String(i.id || i._id || i.id) === String(productId)) || null;
-  }
-
   // ── HSN codes + GST slabs ─────────────────────────────────────
   const HSN = {
     'Natural Products': '0910', 'Stationery': '4820', 'Worksheets': '4901',

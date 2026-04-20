@@ -7,8 +7,15 @@
 
 const express = require('express');
 const router  = express.Router();
+const rateLimit = require('express-rate-limit');
 const Product = require('../models/Product');
 const { getVector } = require('../utils/embeddings');
+
+const conciergeLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 30,
+    message: { success: false, message: 'Too many concierge search requests, please try again shortly' },
+});
 
 /**
  * POST /api/search/concierge
@@ -18,7 +25,7 @@ const { getVector } = require('../utils/embeddings');
  * 2. Runs $vectorSearch on MongoDB Atlas (requires "vector_index").
  * 3. Falls back to full-text / regex search when embeddings are unavailable.
  */
-router.post('/concierge', async (req, res) => {
+router.post('/concierge', conciergeLimiter, async (req, res) => {
     try {
         const { query, limit = 10, boostCategory } = req.body;
 
@@ -87,7 +94,12 @@ router.post('/concierge', async (req, res) => {
             .lean();
 
         if (boostCategory) {
-            results.sort((a) => (a.category === boostCategory ? -1 : 1));
+            results.sort((a, b) => {
+                const aMatch = a.category === boostCategory;
+                const bMatch = b.category === boostCategory;
+                if (aMatch === bMatch) return 0;
+                return aMatch ? -1 : 1;
+            });
         }
 
         res.json({ success: true, data: results.slice(0, parsedLimit), mode: 'text' });

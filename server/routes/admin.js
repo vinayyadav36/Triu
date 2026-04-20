@@ -12,8 +12,9 @@ const settlementService = require('../services/settlementService');
 router.use(verifyToken, verifyAdmin);
 
 function safeUser(user) {
-    const { passwordHash, ...rest } = user;
-    return rest;
+    const safe = { ...user };
+    delete safe.passwordHash;
+    return safe;
 }
 
 // GET /api/admin/dashboard

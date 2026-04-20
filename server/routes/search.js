@@ -87,7 +87,7 @@ router.post('/concierge', async (req, res) => {
             .lean();
 
         if (boostCategory) {
-            results.sort((a, b) => (a.category === boostCategory ? -1 : 1));
+            results.sort((a) => (a.category === boostCategory ? -1 : 1));
         }
 
         res.json({ success: true, data: results.slice(0, parsedLimit), mode: 'text' });

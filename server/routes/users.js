@@ -8,8 +8,9 @@ const db        = require('../utils/jsonDB');
 const { verifyToken } = require('../middleware/auth');
 
 function safeUser(user) {
-    const { passwordHash, ...rest } = user;
-    return rest;
+    const safe = { ...user };
+    delete safe.passwordHash;
+    return safe;
 }
 
 // GET /api/users/profile

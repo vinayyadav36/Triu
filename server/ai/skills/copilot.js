@@ -63,10 +63,6 @@ function buildAlertCard(title, message, severity = 'info') {
     return { type: 'alert', title, data: { message, severity } };
 }
 
-function buildChartCard(title, labels, values, chartType = 'bar') {
-    return { type: 'chart', title, data: { chartType, labels, values } };
-}
-
 // ── Query processors ──────────────────────────────────────────────────────────
 function handleTodaySettlements(userId, role) {
     const today = new Date().toISOString().slice(0, 10);

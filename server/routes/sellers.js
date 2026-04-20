@@ -9,8 +9,9 @@ const fraudDetection = require('../ai/skills/fraudDetection');
 const eventQueue     = require('../services/eventQueue');
 
 function safeUser(user) {
-    const { passwordHash, ...rest } = user;
-    return rest;
+    const safe = { ...user };
+    delete safe.passwordHash;
+    return safe;
 }
 
 // POST /api/sellers/apply

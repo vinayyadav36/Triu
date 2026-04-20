@@ -14,7 +14,7 @@ class InMemoryStore {
 
     _isExpired(key) {
         const exp = this._expiries.get(key);
-        if (exp == null) return false;
+        if (exp === null || exp === undefined) return false;
         if (Date.now() > exp) {
             this._store.delete(key);
             this._expiries.delete(key);
@@ -32,7 +32,7 @@ class InMemoryStore {
 
     async set(key, value, ttlSeconds) {
         this._store.set(key, String(value));
-        if (ttlSeconds != null) {
+        if (ttlSeconds !== null && ttlSeconds !== undefined) {
             this._expiries.set(key, Date.now() + ttlSeconds * 1000);
         }
         return 'OK';
@@ -154,7 +154,7 @@ class CacheClient {
 
     async set(key, value, ttlSeconds) {
         try {
-            if (this._useRedis && ttlSeconds != null) {
+            if (this._useRedis && ttlSeconds !== null && ttlSeconds !== undefined) {
                 // redis v4: set with EX option; ioredis: setex
                 if (this._client.setEx) return await this._client.setEx(key, ttlSeconds, String(value));
                 if (this._client.setex) return await this._client.setex(key, ttlSeconds, String(value));

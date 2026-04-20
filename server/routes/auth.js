@@ -28,8 +28,11 @@ function issueTokenPair(userId, role) {
     return { accessToken, refreshToken };
 }
 
-function safeUser({ passwordHash: _ph, keyHash: _kh, ...rest }) {
-    return rest;
+function safeUser(user) {
+    const sanitized = { ...user };
+    delete sanitized.passwordHash;
+    delete sanitized.keyHash;
+    return sanitized;
 }
 
 function generateOtp() {

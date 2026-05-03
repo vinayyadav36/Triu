@@ -5,10 +5,10 @@
 // GET /sitemap.xml
 // ============================================
 
-const express    = require('express');
-const router     = express.Router();
-const rateLimit  = require('express-rate-limit');
-const Product    = require('../models/Product');
+const express   = require('express');
+const router    = express.Router();
+const rateLimit = require('express-rate-limit');
+const db        = require('../utils/jsonDB');
 
 const sitemapLimiter = rateLimit({
     windowMs: 60 * 60 * 1000, // 1 hour
@@ -27,7 +27,7 @@ function xmlEscape(str) {
         .replace(/'/g, '&apos;');
 }
 
-router.get('/', sitemapLimiter, async (req, res) => {
+router.get('/', sitemapLimiter, (req, res) => {
     try {
         const BASE = (process.env.CLIENT_URL || 'https://emporiumvipani.com').replace(/\/$/, '');
 
@@ -39,14 +39,10 @@ router.get('/', sitemapLimiter, async (req, res) => {
             { loc: `${BASE}/legal/terms.html`,   changefreq: 'monthly', priority: '0.3' },
         ];
 
-        const products = await Product
-            .find({ status: 'active' })
-            .select('_id updatedAt')
-            .limit(50000)
-            .lean();
+        const products = db.find('products', p => p.status === 'active').slice(0, 50000);
 
         const productUrls = products.map(p => ({
-            loc:        `${BASE}/#product-${p._id}`,
+            loc:        `${BASE}/#product-${p.id}`,
             changefreq: 'weekly',
             priority:   '0.8',
             lastmod:    p.updatedAt ? new Date(p.updatedAt).toISOString().split('T')[0] : undefined,
@@ -74,7 +70,6 @@ ${urlBlock}
 
     } catch (err) {
         console.error('❌ Sitemap error:', err);
-        // Return empty but valid sitemap on error
         res.setHeader('Content-Type', 'application/xml; charset=UTF-8');
         res.status(500).send('<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>');
     }

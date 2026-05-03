@@ -1,48 +1,46 @@
 #!/usr/bin/env node
 // server/scripts/db-reset.js
-// Drops all collections and re-runs the seed script.
+// Clears all JSON DB collection files and re-runs the seed script.
 // USE WITH CAUTION — all data will be lost.
 
 'use strict';
 
-const mongoose = require('mongoose');
-const dotenv = require('dotenv');
+const fs   = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
 
-dotenv.config({ path: path.join(__dirname, '..', '.env') });
+const DB_DIR = process.env.TRIU_DB_DIR || path.join(__dirname, '..', 'db');
 
-const MONGO_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/emproiumvipani';
-const SEED_SCRIPT = path.join(__dirname, 'db-seed.js');
+const COLLECTIONS = [
+    'users', 'products', 'orders', 'events', 'gst', 'invoices',
+    'ledger', 'messages', 'otps', 'sessions', 'settlements',
+    'support_tickets', 'audit_log', 'documents',
+];
 
-async function reset() {
-  await mongoose.connect(MONGO_URI);
-  console.log('✅ Connected to MongoDB:', MONGO_URI);
-
-  const db = mongoose.connection.db;
-  const collections = await db.listCollections().toArray();
-
-  if (collections.length === 0) {
-    console.log('ℹ️  No collections found — nothing to drop.');
-  } else {
-    for (const col of collections) {
-      await db.dropCollection(col.name);
-      console.log(`  🗑️  Dropped collection: ${col.name}`);
+function reset() {
+    if (!fs.existsSync(DB_DIR)) {
+        console.log(`ℹ️  DB directory not found: ${DB_DIR}`);
+        fs.mkdirSync(DB_DIR, { recursive: true });
     }
-    console.log(`\n✅ Dropped ${collections.length} collection(s).`);
-  }
 
-  await mongoose.disconnect();
+    for (const col of COLLECTIONS) {
+        const file = path.join(DB_DIR, `${col}.json`);
+        fs.writeFileSync(file, '[]', 'utf8');
+        console.log(`  🗑️  Cleared: ${col}.json`);
+    }
 
-  console.log('\n🌱 Re-running seed script...\n');
-  const result = spawnSync(process.execPath, [SEED_SCRIPT], { stdio: 'inherit' });
-  if (result.status !== 0) {
-    console.error('❌ Seed script exited with code', result.status);
-    process.exit(result.status || 1);
-  }
+    console.log(`\n✅ Cleared ${COLLECTIONS.length} collection(s).\n`);
+    console.log('🌱 Re-running seed script...\n');
+
+    const result = spawnSync(process.execPath, [path.join(__dirname, 'db-seed.js')], {
+        stdio: 'inherit',
+        env:   { ...process.env, TRIU_DB_DIR: DB_DIR },
+    });
+
+    if (result.status !== 0) {
+        console.error('❌ Seed script exited with code', result.status);
+        process.exit(result.status || 1);
+    }
 }
 
-reset().catch(err => {
-  console.error('❌ Reset failed:', err.message);
-  process.exit(1);
-});
+reset();

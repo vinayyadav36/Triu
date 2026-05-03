@@ -92,6 +92,9 @@ app.use('/api/payments', require('../server/routes/payments'));
 app.use('/api/gst',      require('../server/routes/gst'));
 app.use('/api/ledger',   require('../server/routes/ledger'));
 app.use('/api/billing',  require('../server/routes/billing'));
+app.use('/api/messages', require('../server/routes/messages'));
+app.use('/api/search',   require('../server/routes/search'));
+app.use('/api/sitemap',  require('../server/routes/sitemap'));
 
 // ── 404 ───────────────────────────────────────────────────────────────────────
 app.use((_req, res) => {

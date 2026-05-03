@@ -3,33 +3,10 @@
 // ============================================
 // AUDIT LOGGER — DPDP Act 2023 compliance
 // Records every data-access event: who, when, why, what resource.
+// Backed by JSON file DB (collection: audit_log).
 // ============================================
 
-const mongoose = require('mongoose');
-
-// ── Schema ──────────────────────────────────────────────────────────────────
-const auditSchema = new mongoose.Schema({
-    actorId:    { type: String, default: 'anonymous' }, // user/admin id or 'system'
-    actorRole:  { type: String, default: 'unknown' },
-    action:     { type: String, required: true },        // e.g. 'READ_USER_PROFILE'
-    resource:   { type: String, required: true },        // e.g. '/api/users/profile'
-    method:     { type: String, required: true },        // HTTP method
-    statusCode: { type: Number },
-    ip:         { type: String },
-    userAgent:  { type: String },
-    purpose:    { type: String, default: 'operational' }, // DPDP: purpose of processing
-    timestamp:  { type: Date, default: Date.now, index: true },
-}, { timestamps: false });
-
-// Keep audit records for 7 years (Income Tax Act requirement)
-auditSchema.index({ timestamp: 1 }, { expireAfterSeconds: 7 * 365 * 24 * 3600 });
-
-let AuditLog;
-try {
-    AuditLog = mongoose.model('AuditLog');
-} catch {
-    AuditLog = mongoose.model('AuditLog', auditSchema);
-}
+const db = require('./jsonDB');
 
 // ── PII-sensitive route patterns (always logged at higher priority) ──────────
 const PII_PATTERNS = [
@@ -46,7 +23,7 @@ function isPiiRoute(path) {
 
 // ── Middleware factory ───────────────────────────────────────────────────────
 /**
- * Express middleware that logs every request to the AuditLog collection.
+ * Express middleware that logs every request to the audit_log collection.
  * Non-blocking: logging failures never interrupt the request lifecycle.
  */
 function auditLogger(req, res, next) {
@@ -65,12 +42,15 @@ function auditLogger(req, res, next) {
             ip:         (req.headers['x-forwarded-for'] || req.ip || '').split(',')[0].trim(),
             userAgent:  (req.headers['user-agent'] || '').slice(0, 200),
             purpose:    isPiiRoute(req.path) ? 'pii-access' : 'operational',
+            timestamp:  new Date().toISOString(),
         };
 
         // Fire-and-forget — never block response
-        AuditLog.create(entry).catch(err => {
+        try {
+            db.create('audit_log', entry);
+        } catch (err) {
             console.error('[auditLogger] Write failed:', err.message);
-        });
+        }
     });
 
     next();
@@ -81,21 +61,23 @@ function auditLogger(req, res, next) {
  * Log a specific data-processing event (e.g., data deletion, export).
  * @param {{ actorId, actorRole, action, resource, purpose, ip? }} event
  */
-async function logEvent(event) {
+function logEvent(event) {
     try {
-        await AuditLog.create({
+        db.create('audit_log', {
             actorId:   String(event.actorId || 'system'),
             actorRole: String(event.actorRole || 'system'),
             action:    String(event.action),
             resource:  String(event.resource),
             method:    'EVENT',
+            statusCode: null,
             purpose:   String(event.purpose || 'operational'),
             ip:        String(event.ip || 'internal'),
             userAgent: 'server',
+            timestamp: new Date().toISOString(),
         });
     } catch (err) {
         console.error('[auditLogger] logEvent failed:', err.message);
     }
 }
 
-module.exports = { auditLogger, logEvent, AuditLog };
+module.exports = { auditLogger, logEvent };

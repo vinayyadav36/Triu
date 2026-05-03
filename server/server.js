@@ -139,6 +139,9 @@ app.use('/api/ledger',   require('./routes/ledger'));
 app.use('/api/jarvis',   require('./routes/jarvis'));
 app.use('/api/billing',  require('./routes/billing'));
 app.use('/api/bots',     require('./routes/bots'));
+app.use('/api/messages', require('./routes/messages'));
+app.use('/api/search',   require('./routes/search'));
+app.use('/api/sitemap',  require('./routes/sitemap'));
 
 // ── Static frontend ───────────────────────────────────────────────────────────
 const distPath = path.join(__dirname, '..', 'dist');

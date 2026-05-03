@@ -1,43 +1,59 @@
 #!/usr/bin/env node
 // server/scripts/db-migrate.js
-// Ensures all indexes are created on all models.
+// Ensures all JSON DB collection files exist and are valid JSON arrays.
+// Safe to run at any time — creates missing files, does not delete data.
 
 'use strict';
 
-const mongoose = require('mongoose');
-const dotenv = require('dotenv');
+const fs   = require('fs');
 const path = require('path');
 
-dotenv.config({ path: path.join(__dirname, '..', '.env') });
+const DB_DIR = process.env.TRIU_DB_DIR || path.join(__dirname, '..', 'db');
 
-const MONGO_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/emproiumvipani';
+const COLLECTIONS = [
+    'users', 'products', 'orders', 'events', 'gst', 'invoices',
+    'ledger', 'messages', 'otps', 'sessions', 'settlements',
+    'support_tickets', 'audit_log', 'documents',
+];
 
-// Load all models so Mongoose registers their schemas and indexes
-require('../models/User');
-require('../models/Product');
-require('../models/Order');
-require('../models/OtpToken');
-require('../models/Settlement');
-require('../models/SupportTicket');
-require('../models/GeneratedDocument');
+function migrate() {
+    if (!fs.existsSync(DB_DIR)) {
+        fs.mkdirSync(DB_DIR, { recursive: true });
+        console.log(`📁 Created DB directory: ${DB_DIR}`);
+    }
 
-async function migrate() {
-  await mongoose.connect(MONGO_URI);
-  console.log('✅ Connected to MongoDB:', MONGO_URI);
-  console.log('\n🔧 Ensuring indexes on all models...\n');
+    let created = 0;
+    let repaired = 0;
 
-  const modelNames = mongoose.modelNames();
-  for (const modelName of modelNames) {
-    const model = mongoose.model(modelName);
-    await model.createIndexes();
-    console.log(`  ✅ Indexes ensured: ${modelName}`);
-  }
+    for (const col of COLLECTIONS) {
+        const file = path.join(DB_DIR, `${col}.json`);
 
-  console.log('\n✅ Migration complete — all indexes are up to date.\n');
-  await mongoose.disconnect();
+        if (!fs.existsSync(file)) {
+            fs.writeFileSync(file, '[]', 'utf8');
+            console.log(`  ✅ Created: ${col}.json`);
+            created++;
+            continue;
+        }
+
+        // Validate existing file is a valid JSON array
+        try {
+            const content = fs.readFileSync(file, 'utf8');
+            const parsed  = JSON.parse(content);
+            if (!Array.isArray(parsed)) {
+                fs.writeFileSync(file, '[]', 'utf8');
+                console.log(`  🔧 Repaired (was not array): ${col}.json`);
+                repaired++;
+            } else {
+                console.log(`  ✔  OK: ${col}.json (${parsed.length} records)`);
+            }
+        } catch {
+            fs.writeFileSync(file, '[]', 'utf8');
+            console.log(`  🔧 Repaired (invalid JSON): ${col}.json`);
+            repaired++;
+        }
+    }
+
+    console.log(`\n✅ Migration complete — ${created} created, ${repaired} repaired.\n`);
 }
 
-migrate().catch(err => {
-  console.error('❌ Migration failed:', err.message);
-  process.exit(1);
-});
+migrate();

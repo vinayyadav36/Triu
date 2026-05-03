@@ -142,16 +142,36 @@ class AppStore {
     
     // ========== Initial Data Loading (API-first with graceful fallback) ==========
     async loadInitialData() {
-        // Try loading from backend API first; fall back to local seed data on failure
+        // Try loading from backend API first; fall back to static seed JSON; finally to hardcoded data
         this.state.loading.products = true;
         this.notify();
+
+        // Emoji defaults used when a product has no thumbnail
+        const defaultEmojiByCategory = {
+            'Natural Products': '🌿',
+            'Stationery': '📓',
+            'Worksheets': '📚',
+            'Electronics': '💻',
+            'Fashion': '👗',
+            'Home & Kitchen': '🏠',
+            'Books': '📖',
+            'Toys & Games': '🎮',
+            'Health & Beauty': '💊',
+            'Sports & Outdoors': '⚽',
+            'Grocery': '🛒',
+            'Automotive': '🚗',
+            'Art & Crafts': '🎨',
+            'Baby Products': '🍼',
+            'Office Supplies': '🖊',
+            'Other': '📦'
+        };
 
         try {
             const api = window.api;
 
             if (!api || typeof api.getProducts !== 'function' || typeof api.getSellers !== 'function') {
                 console.warn('⚠️ API service not available, using local seed data');
-                this.seedData();
+                await this._loadStaticFallback();
                 return;
             }
 
@@ -163,15 +183,15 @@ class AppStore {
             const rawProducts = productsResponse?.data || [];
             const rawSellers = sellersResponse?.data || [];
 
-            // Normalize sellers
+            // Normalize sellers — support both MongoDB (_id) and JSON DB (id) formats
             const sellers = rawSellers.map((s) => ({
-                id: s._id,
-                name: s.name,
-                status: s.seller?.status || 'approved',
+                id: s._id || s.id,
+                name: s.businessName || s.name,
+                status: s.seller?.status || s.status || 'approved',
                 rating: 0,
-                desc: s.seller?.description || '',
-                avatar: (s.name || 'S').charAt(0).toUpperCase(),
-                verified: !!s.seller?.verified,
+                desc: s.seller?.description || s.description || '',
+                avatar: (s.businessName || s.name || 'S').charAt(0).toUpperCase(),
+                verified: !!s.seller?.verified || !!s.verified,
                 location: s.seller?.businessType || 'Seller'
             }));
 
@@ -179,39 +199,21 @@ class AppStore {
             const sellerMap = new Map(sellers.map((s) => [String(s.id), s]));
 
             // Normalize products into the shape the UI expects
+            // Support both MongoDB (_id) and JSON DB (id) id fields
             const products = rawProducts.map((p) => {
                 const sellerId = (p.sellerId && (p.sellerId._id || p.sellerId)) || null;
                 const seller = sellerMap.get(String(sellerId));
 
-                // Choose a simple emoji avatar based on category if thumbnail is not present
-                const defaultEmojiByCategory = {
-                    'Natural Products': '🌿',
-                    'Stationery': '📓',
-                    'Worksheets': '📚',
-                    'Electronics': '💻',
-                    'Fashion': '👗',
-                    'Home & Kitchen': '🏠',
-                    'Books': '📖',
-                    'Toys & Games': '🎮',
-                    'Health & Beauty': '💊',
-                    'Sports & Outdoors': '⚽',
-                    'Grocery': '🛒',
-                    'Automotive': '🚗',
-                    'Art & Crafts': '🎨',
-                    'Baby Products': '🍼',
-                    'Office Supplies': '🖊',
-                    'Other': '📦'
-                };
-
                 return {
-                    id: p._id,
+                    id: p._id || p.id,
                     name: p.name,
                     price: p.price,
+                    mrp: p.mrp || p.price,
                     sellerId: seller ? seller.id : sellerId,
                     category: p.category || 'Other',
                     image: p.thumbnail || defaultEmojiByCategory[p.category] || '🛒',
                     stock: p.stock ?? 0,
-                    rating: p.rating?.average ?? 0,
+                    rating: (p.rating && typeof p.rating === 'object') ? (p.rating.average ?? 0) : (p.rating ?? 0),
                     sales: p.sales ?? 0,
                     description: p.description || ''
                 };
@@ -222,13 +224,53 @@ class AppStore {
             this.state.filteredProducts = [...products];
             this.filterProducts();
         } catch (error) {
-            console.error('❌ Failed to load products from API, using local seed data instead:', error);
-            this.showToast('Unable to connect to marketplace server. Showing demo catalogue.', 'warning');
-            this.seedData();
+            console.error('❌ Failed to load products from API, trying static fallback:', error);
+            await this._loadStaticFallback();
         } finally {
             this.state.loading.products = false;
             this.notify();
         }
+    }
+
+    // ========== Static JSON Fallback ==========
+    /**
+     * Fetch pre-built products from /data/products.json (bundled with the static
+     * site).  This ensures the storefront renders product cards on Vercel even
+     * when the backend is unreachable.  Falls back to hardcoded seedData() if
+     * the static file itself cannot be fetched.
+     */
+    async _loadStaticFallback() {
+        try {
+            const res = await fetch('/data/products.json');
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const products = await res.json();
+
+            if (Array.isArray(products) && products.length > 0) {
+                this.state.products = products;
+                this.state.filteredProducts = [...products];
+                // Build a minimal sellers list from the static product data
+                const sellerIds = [...new Set(products.map(p => p.sellerId).filter(Boolean))];
+                this.state.sellers = sellerIds.map(id => ({
+                    id,
+                    name: 'Triu Store',
+                    status: 'approved',
+                    rating: 4.5,
+                    desc: 'Quality products from verified sellers',
+                    avatar: 'T',
+                    verified: true,
+                    location: 'India'
+                }));
+                this.filterProducts();
+                console.info('ℹ️ Loaded static catalogue. Connect a backend for live data.');
+                this.showToast('Showing demo catalogue. Live data requires backend connection.', 'warning');
+                return;
+            }
+        } catch (err) {
+            console.warn('⚠️ Static fallback fetch failed:', err.message);
+        }
+        // Last resort: hardcoded seed data
+        this.showToast('Unable to connect to marketplace server. Showing demo catalogue.', 'warning');
+        this.seedData();
     }
     
     // ========== Guest Session ==========

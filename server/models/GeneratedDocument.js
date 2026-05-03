@@ -1,17 +1,18 @@
-const mongoose = require('mongoose');
-const docSchema = new mongoose.Schema({
-  documentId: { type: String, unique: true, required: true },
-  type: { type: String, enum: ['invoice', 'receipt', 'credit_note', 'debit_note', 'settlement_statement', 'payout_summary', 'booking_confirmation', 'order_confirmation', 'cancellation_receipt', 'refund_receipt', 'commission_statement'], required: true },
-  referenceType: { type: String, enum: ['order', 'settlement', 'booking', 'payment', 'refund'] },
-  referenceId: mongoose.Schema.Types.ObjectId,
-  generatedFor: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  generatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  data: mongoose.Schema.Types.Mixed,
-  htmlContent: String,
-  status: { type: String, enum: ['draft', 'final', 'void'], default: 'final' },
-  emailedTo: [String],
-  createdAt: { type: Date, default: Date.now }
-}, { timestamps: true });
-docSchema.index({ referenceId: 1, type: 1 });
-docSchema.index({ generatedFor: 1 });
-module.exports = mongoose.model('GeneratedDocument', docSchema);
+// ============================================
+// GENERATED DOCUMENT — JSON DB Schema Reference
+// ============================================
+// All generated documents are stored in server/db/documents.json via server/utils/jsonDB.js.
+// This file documents the shape of each record (no Mongoose / no MongoDB).
+//
+// Schema:
+// {
+//   id:           string  (UUID, auto-generated)
+//   type:         'invoice' | 'gst_return' | 'settlement_report' | 'receipt'
+//   referenceId:  string  (id of referenced entity, e.g. orderId, settlementId)
+//   generatedFor: string  (references users.id)
+//   generatedBy:  string  (references users.id, or 'system')
+//   data:         object  (document payload — structure varies by type)
+//   fileUrl:      string? (URL if file was uploaded to storage)
+//   createdAt:    ISO date string  (auto-generated)
+//   updatedAt:    ISO date string  (auto-updated)
+// }

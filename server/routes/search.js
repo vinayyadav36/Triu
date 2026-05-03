@@ -1,31 +1,29 @@
 'use strict';
 
 // ============================================
-// SEARCH ROUTES — AI Concierge (Vector Search)
+// SEARCH ROUTES — Full-text search over JSON DB
 // POST /api/search/concierge
 // ============================================
 
-const express = require('express');
-const router  = express.Router();
+const express   = require('express');
+const router    = express.Router();
 const rateLimit = require('express-rate-limit');
-const Product = require('../models/Product');
-const { getVector } = require('../utils/embeddings');
+const db        = require('../utils/jsonDB');
 
 const conciergeLimiter = rateLimit({
     windowMs: 60 * 1000,
     max: 30,
-    message: { success: false, message: 'Too many concierge search requests, please try again shortly' },
+    message: { success: false, message: 'Too many search requests, please try again shortly' },
 });
 
 /**
  * POST /api/search/concierge
  * Body: { query: string, limit?: number, boostCategory?: string }
  *
- * 1. Converts the natural-language query to a vector via OpenAI.
- * 2. Runs $vectorSearch on MongoDB Atlas (requires "vector_index").
- * 3. Falls back to full-text / regex search when embeddings are unavailable.
+ * Performs case-insensitive full-text search across product name, description,
+ * and category fields stored in the JSON database.
  */
-router.post('/concierge', conciergeLimiter, async (req, res) => {
+router.post('/concierge', conciergeLimiter, (req, res) => {
     try {
         const { query, limit = 10, boostCategory } = req.body;
 
@@ -34,79 +32,37 @@ router.post('/concierge', conciergeLimiter, async (req, res) => {
         }
 
         const parsedLimit = Math.min(20, Math.max(1, parseInt(limit, 10) || 10));
-        const cleanQuery  = query.trim().slice(0, 500);
+        const cleanQuery  = query.trim().toLowerCase().slice(0, 500);
+        const terms       = cleanQuery.split(/\s+/).filter(Boolean);
 
-        // ── Try vector search ─────────────────────────────────────────────
-        const queryVector = await getVector(cleanQuery);
+        // Score each active product by how many query terms it matches
+        let products = db.find('products', p => p.status === 'active');
 
-        if (queryVector) {
-            const pipeline = [
-                {
-                    $vectorSearch: {
-                        index:       'vector_index',
-                        path:        'embedding',
-                        queryVector,
-                        numCandidates: parsedLimit * 10,
-                        limit:       parsedLimit * 2, // fetch extra, re-rank below
-                        filter:      { status: 'active' },
-                    },
-                },
-                {
-                    $project: {
-                        name: 1, description: 1, price: 1, category: 1,
-                        thumbnail: 1, stock: 1, rating: 1, sales: 1,
-                        sellerId: 1, hsnCode: 1, countryOfOrigin: 1,
-                        score: { $meta: 'vectorSearchScore' },
-                    },
-                },
-            ];
+        const scored = products.map(p => {
+            const haystack = [
+                p.name        || '',
+                p.description || '',
+                p.category    || '',
+            ].join(' ').toLowerCase();
 
-            let results = await Product.aggregate(pipeline);
+            const matchCount = terms.filter(t => haystack.includes(t)).length;
+            const score = matchCount / terms.length;
+            return { ...p, _score: score };
+        }).filter(p => p._score > 0);
 
-            // Boost preferred category to the top (hyper-personalisation)
-            if (boostCategory) {
-                results.sort((a, b) => {
-                    const aBoost = a.category === boostCategory ? 0.1 : 0;
-                    const bBoost = b.category === boostCategory ? 0.1 : 0;
-                    return (b.score + bBoost) - (a.score + aBoost);
-                });
-            }
+        // Sort by score descending; boost preferred category
+        scored.sort((a, b) => {
+            const aBoost = boostCategory && a.category === boostCategory ? 0.1 : 0;
+            const bBoost = boostCategory && b.category === boostCategory ? 0.1 : 0;
+            return (b._score + bBoost) - (a._score + aBoost);
+        });
 
-            return res.json({
-                success: true,
-                data:    results.slice(0, parsedLimit),
-                mode:    'vector',
-            });
-        }
+        const results = scored.slice(0, parsedLimit).map(({ _score, ...p }) => p);
 
-        // ── Fallback: MongoDB $text search ───────────────────────────────
-        // Requires a text index on { name: 'text', description: 'text', category: 'text' }.
-        // Using $text avoids $regex injection vectors (CodeQL js/sql-injection).
-        const filter = {
-            status: 'active',
-            $text: { $search: cleanQuery },
-        };
-
-        let results = await Product
-            .find(filter)
-            .select('name description price category thumbnail stock rating sales sellerId hsnCode countryOfOrigin')
-            .limit(parsedLimit * 2)
-            .lean();
-
-        if (boostCategory) {
-            results.sort((a, b) => {
-                const aMatch = a.category === boostCategory;
-                const bMatch = b.category === boostCategory;
-                if (aMatch === bMatch) return 0;
-                return aMatch ? -1 : 1;
-            });
-        }
-
-        res.json({ success: true, data: results.slice(0, parsedLimit), mode: 'text' });
-
+        return res.json({ success: true, data: results, mode: 'json-text' });
     } catch (err) {
-        console.error('❌ AI search error:', err);
-        res.status(500).json({ success: false, message: 'Search failed' });
+        console.error('❌ Search error:', err);
+        return res.status(500).json({ success: false, message: 'Search failed' });
     }
 });
 

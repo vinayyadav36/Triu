@@ -533,6 +533,46 @@ class APIService {
     async triggerSettlement(sellerId) {
         return this.request('POST', `/ledger/settlement/${sellerId}`);
     }
+
+    // ========== MESSAGES ==========
+    async getInbox(params = {}) {
+        const qs = new URLSearchParams(params).toString();
+        return this.request('GET', `/messages/inbox${qs ? '?' + qs : ''}`);
+    }
+
+    async getSentMessages(params = {}) {
+        const qs = new URLSearchParams(params).toString();
+        return this.request('GET', `/messages/sent${qs ? '?' + qs : ''}`);
+    }
+
+    async getUnreadCount() {
+        return this.request('GET', '/messages/unread-count');
+    }
+
+    async getMessage(id) {
+        return this.request('GET', `/messages/${id}`);
+    }
+
+    async sendMessage(toUserId, subject, body, refType = null, refId = null) {
+        return this.request('POST', '/messages', { toUserId, subject, body, refType, refId });
+    }
+
+    async markMessageRead(id) {
+        return this.request('PUT', `/messages/${id}/read`);
+    }
+
+    async deleteMessage(id) {
+        return this.request('DELETE', `/messages/${id}`);
+    }
+
+    // ========== SEARCH ==========
+    async searchProducts(query, opts = {}) {
+        return this.request('POST', '/search/concierge', {
+            query,
+            limit:         opts.limit         || 10,
+            boostCategory: opts.boostCategory  || null,
+        });
+    }
 }
 
 // Create global instance

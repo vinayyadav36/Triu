@@ -103,7 +103,7 @@ jobs:
 
       - name: Upload coverage report
         if: matrix.node == '20'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-report
           path: server/coverage/
@@ -141,7 +141,7 @@ jobs:
 
       - name: Upload build artifact
         if: matrix.node == '20'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: frontend-dist
           path: dist/

@@ -142,6 +142,7 @@ app.use('/api/bots',     require('./routes/bots'));
 app.use('/api/messages', require('./routes/messages'));
 app.use('/api/search',   require('./routes/search'));
 app.use('/api/sitemap',  require('./routes/sitemap'));
+app.use('/api/cart',     require('./routes/cart'));
 
 // ── Static frontend ───────────────────────────────────────────────────────────
 const distPath = path.join(__dirname, '..', 'dist');

@@ -2163,7 +2163,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.fetch = async (...args) => {
         try {
             const res = await _origFetch(...args);
-            if ([401, 403, 404, 500].includes(res.status) && window.GlobalErrorHandler) {
+            if ([401, 403, 500].includes(res.status) && window.GlobalErrorHandler) {
                 if (res.status === 401) {
                     window.GlobalErrorHandler.show(401, () => store.openModal('login'));
                     store.logout();
@@ -2171,7 +2171,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             return res;
         } catch (err) {
-            if (window.GlobalErrorHandler) window.GlobalErrorHandler.show(0);
+            // Only show offline modal for genuine network errors (code 0 / TypeError: Failed to fetch)
+            if (err.name === 'TypeError' && err.message === 'Failed to fetch') {
+                if (window.GlobalErrorHandler) window.GlobalErrorHandler.show(0);
+            }
             throw err;
         }
     };

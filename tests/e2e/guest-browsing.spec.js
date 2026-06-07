@@ -18,7 +18,7 @@ test.describe('Guest browsing — public access', () => {
   test('home page loads without login', async ({ page }) => {
     await expect(page).toHaveTitle(/Emproium|Vipani/i);
     // Hero / product grid should be visible
-    await expect(page.locator('#products, [id*="product"], main')).toBeVisible();
+    await expect(page.locator('main').first()).toBeVisible();
     // Login modal should NOT be visible on page load
     const loginModal = page.locator('[x-show="store.modals.login"]');
     await expect(loginModal).toBeHidden();

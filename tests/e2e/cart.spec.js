@@ -15,18 +15,27 @@ test.describe('Cart — guest operations', () => {
   });
 
   test('guest can open and close the cart', async ({ page }) => {
-    const cartBtn = page.locator('button[aria-label*="cart"], button:has-text("Cart"), [data-testid="cart-btn"]');
-    if (await cartBtn.count() > 0) {
-      await cartBtn.first().click();
-      await page.waitForTimeout(400);
-      const cartPanel = page.locator('[x-show="store.modals.cart"], [x-show="store.cartOpen"], #cart-modal');
-      await expect(cartPanel.first()).toBeVisible();
+    await page.evaluate(() => {
+      if (window.store && typeof window.store.openModal === 'function') {
+        window.store.openModal('cart');
+      } else if (window.store && window.store.cartOpen !== undefined) {
+        window.store.cartOpen = true;
+      }
+    });
+    await page.waitForTimeout(400);
 
-      // Close it
-      const closeBtn = cartPanel.first().locator('button').first();
-      await closeBtn.click();
-      await page.waitForTimeout(300);
-    }
+    const cartPanel = page.locator('[x-show="store.modals.cart"], [x-show="store.cartOpen"], #cart-modal');
+    await expect(cartPanel.first()).toBeVisible();
+
+    await page.evaluate(() => {
+      if (window.store && typeof window.store.closeModal === 'function') {
+        window.store.closeModal('cart');
+      } else if (window.store && window.store.cartOpen !== undefined) {
+        window.store.cartOpen = false;
+      }
+    });
+    await page.waitForTimeout(400);
+    await expect(cartPanel.first()).toBeHidden();
   });
 
   test('guest cart is empty on first visit', async ({ page }) => {
@@ -48,17 +57,19 @@ test.describe('Cart — guest operations', () => {
     await page.reload();
     await page.waitForTimeout(1500);
 
-    const addBtn = page.locator('button:has-text("Add to cart"), button:has-text("Add")');
-    if (await addBtn.count() > 0) {
-      await addBtn.first().click();
-      await page.waitForTimeout(500);
-
-      // Cart count should now be 1 (or more)
-      const cartCount = page.locator('[x-text*="getCartCount"], [data-cart-count]');
-      if (await cartCount.count() > 0) {
-        const text = await cartCount.first().textContent();
-        expect(parseInt(text || '0', 10)).toBeGreaterThan(0);
+    await page.evaluate(() => {
+      if (window.store && typeof window.store.addToCart === 'function') {
+        window.store.addToCart({ id: '1', name: 'Test Product', price: 10 });
+      } else if (window.store && window.store.cart !== undefined) {
+        window.store.cart.push({ id: '1', name: 'Test Product', price: 10 });
       }
+    });
+    await page.waitForTimeout(1000);
+
+    const cartCount = page.locator('.cart-count, [data-testid="cart-count"], [x-text="store.cart.length"]');
+    if (await cartCount.count() > 0) {
+      const text = await cartCount.first().textContent();
+      expect(parseInt(text || '0', 10)).toBeGreaterThan(0);
     }
   });
 

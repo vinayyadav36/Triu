@@ -57,7 +57,11 @@ router.post('/concierge', conciergeLimiter, (req, res) => {
             return (b._score + bBoost) - (a._score + aBoost);
         });
 
-        const results = scored.slice(0, parsedLimit).map(({ _score, ...p }) => p);
+        const results = scored.slice(0, parsedLimit).map((p) => {
+            const copy = { ...p };
+            delete copy._score;
+            return copy;
+        });
 
         return res.json({ success: true, data: results, mode: 'json-text' });
     } catch (err) {

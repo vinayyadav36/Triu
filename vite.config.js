@@ -9,7 +9,7 @@ function injectEnvPlugin() {
     transformIndexHtml() {
       const envContent = `
 window.__ENV__ = {
-  VITE_API_URL: ${JSON.stringify(process.env.VITE_API_URL || 'http://localhost:5000/api')},
+  VITE_API_URL: ${JSON.stringify(process.env.VITE_API_URL || '/api')},
   VITE_RAZORPAY_KEY_ID: ${JSON.stringify(process.env.VITE_RAZORPAY_KEY_ID || '')},
   VITE_EMAILJS_PUBLIC_KEY: ${JSON.stringify(process.env.VITE_EMAILJS_PUBLIC_KEY || process.env.EMAILJS_PUBLIC_KEY || '')},
   VITE_EMAILJS_SERVICE_ID: ${JSON.stringify(process.env.VITE_EMAILJS_SERVICE_ID || process.env.EMAILJS_SERVICE_ID || '')},
@@ -50,7 +50,7 @@ function copyPlainJsPlugin() {
 
         // Replace import.meta.env references so the files work outside Vite's
         // module bundler (they are loaded as plain <script> tags).
-        const apiUrl = process.env.VITE_API_URL || 'http://localhost:5000/api'
+        const apiUrl = process.env.VITE_API_URL || '/api'
         const rzpKey = process.env.VITE_RAZORPAY_KEY_ID || ''
         const ejsKey = process.env.VITE_EMAILJS_PUBLIC_KEY || process.env.EMAILJS_PUBLIC_KEY || ''
         const ejsSvc = process.env.VITE_EMAILJS_SERVICE_ID || process.env.EMAILJS_SERVICE_ID || ''

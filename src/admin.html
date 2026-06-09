@@ -787,9 +787,9 @@ body{font-family:system-ui,sans-serif}
 <div id="toast-root" class="fixed top-4 right-4 z-[9999] flex flex-col gap-2 pointer-events-none"></div>
 
 <script>
-const API_BASE = localStorage.getItem('ev_admin_api') || 'http://localhost:3001/api';
+const API_BASE = localStorage.getItem('ev_admin_api') || '/api';
 // Marketplace backend (Express/MongoDB)
-const MKT_API = localStorage.getItem('ev_mkt_api') || 'http://localhost:5000/api';
+const MKT_API = localStorage.getItem('ev_mkt_api') || '/api';
 const GST_SLAB = {'Natural Products':5,'Worksheets':0,'Books':0,'Stationery':12,'Electronics':18,'Fashion':12,'Home & Kitchen':18,'Health & Beauty':18,'Toys & Games':28,'Art & Crafts':12,'Sports & Outdoors':18,'Other':18};
 
 function showToast(msg, type='success') {

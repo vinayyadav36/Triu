@@ -7,7 +7,7 @@
 // the build/server, or fall back to localhost for development.
 const API_URL = (window.__ENV__ && window.__ENV__.VITE_API_URL)
     ? window.__ENV__.VITE_API_URL
-    : 'http://localhost:5000/api';
+    : '/api';
 
 // Resolve the full origin of our API to scope JWT attachment
 const _API_ORIGIN = (() => {

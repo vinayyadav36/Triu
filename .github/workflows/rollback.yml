@@ -104,7 +104,7 @@ jobs:
       # ── GitHub Pages fallback ───────────────────────────────────────────────
       - name: Upload rolled-back artifact (GitHub Pages)
         if: ${{ secrets.VERCEL_TOKEN == '' && github.event.inputs.target_env == 'production' }}
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: dist/
 
